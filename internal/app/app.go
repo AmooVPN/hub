@@ -127,6 +127,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Use("/admin", r.requireAdminSession)
 	app.Get("/admin", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboard)
 	app.Get("/admin/dashboard/widgets", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboardWidgets)
+	app.Get("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.getAdminSettings)
 	app.Get("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUsers)
 	app.Get("/admin/users/new", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUserNew)
 	app.Post("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.postAdminUserCreate)
@@ -258,24 +259,42 @@ func (r *Runner) requireAdminSession(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getAdminUsers(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
 	admins, err := r.admins.List(c.UserContext())
 	if err != nil {
 		return err
 	}
-	return c.Type("html").SendString(renderAdminUsersPage(admins, r.cfg.AppName))
+	return c.Type("html").SendString(renderAdminUsersPage(admins, r.cfg.AppName, admin.Role))
 }
 
 func (r *Runner) getAdminUserNew(c *fiber.Ctx) error {
-	return c.Type("html").SendString(renderAdminUserFormPage("Create Admin", "/admin/users", adminForm{}, false, r.cfg.AppName, nil))
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	return c.Type("html").SendString(renderAdminUserFormPage("Create Admin", "/admin/users", adminForm{}, false, r.cfg.AppName, admin.Role, nil))
 }
 
 func (r *Runner) postAdminUserCreate(c *fiber.Ctx) error {
 	form, err := parseAdminForm(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Create Admin", "/admin/users", form, false, r.cfg.AppName, []string{err.Error()}))
+		admin, _ := currentAdmin(c)
+		role := "owner"
+		if admin != nil {
+			role = admin.Role
+		}
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Create Admin", "/admin/users", form, false, r.cfg.AppName, role, []string{err.Error()}))
 	}
 	if err := form.validate(true); err != nil {
-		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Create Admin", "/admin/users", form, false, r.cfg.AppName, []string{err.Error()}))
+		admin, _ := currentAdmin(c)
+		role := "owner"
+		if admin != nil {
+			role = admin.Role
+		}
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Create Admin", "/admin/users", form, false, r.cfg.AppName, role, []string{err.Error()}))
 	}
 	hash, err := security.HashPassword(form.Password)
 	if err != nil {
@@ -299,7 +318,12 @@ func (r *Runner) getAdminUserEdit(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), adminFormFromAdmin(admin), true, r.cfg.AppName, nil))
+	current, _ := currentAdmin(c)
+	role := "owner"
+	if current != nil {
+		role = current.Role
+	}
+	return c.Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), adminFormFromAdmin(admin), true, r.cfg.AppName, role, nil))
 }
 
 func (r *Runner) postAdminUserUpdate(c *fiber.Ctx) error {
@@ -313,10 +337,20 @@ func (r *Runner) postAdminUserUpdate(c *fiber.Ctx) error {
 	}
 	form, err := parseAdminForm(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), adminFormFromAdmin(existing), true, r.cfg.AppName, []string{err.Error()}))
+		current, _ := currentAdmin(c)
+		role := "owner"
+		if current != nil {
+			role = current.Role
+		}
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), adminFormFromAdmin(existing), true, r.cfg.AppName, role, []string{err.Error()}))
 	}
 	if err := form.validate(false); err != nil {
-		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), form, true, r.cfg.AppName, []string{err.Error()}))
+		current, _ := currentAdmin(c)
+		role := "owner"
+		if current != nil {
+			role = current.Role
+		}
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), form, true, r.cfg.AppName, role, []string{err.Error()}))
 	}
 	updated := *existing
 	updated.Username = form.Username
@@ -328,7 +362,12 @@ func (r *Runner) postAdminUserUpdate(c *fiber.Ctx) error {
 			return err
 		}
 		if owners <= 1 {
-			return c.Status(fiber.StatusForbidden).Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), adminFormFromAdmin(existing), true, r.cfg.AppName, []string{"last owner cannot be demoted"}))
+			current, _ := currentAdmin(c)
+			role := "owner"
+			if current != nil {
+				role = current.Role
+			}
+			return c.Status(fiber.StatusForbidden).Type("html").SendString(renderAdminUserFormPage("Edit Admin", "/admin/users/"+c.Params("id"), adminFormFromAdmin(existing), true, r.cfg.AppName, role, []string{"last owner cannot be demoted"}))
 		}
 	}
 	if err := r.admins.Update(c.UserContext(), &updated); err != nil {
@@ -850,7 +889,7 @@ func renderLoginPage(message, appName string) string {
 	return renderPage("Admin Login", `<main class="container py-5" style="max-width: 480px;"><div class="card shadow-sm"><div class="card-body p-4"><h1 class="h4 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-4">Admin sign in</p>` + alert + `<form method="post" action="/admin/login" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" autocomplete="username" required></div><div><label class="form-label" for="password">Password</label><input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary w-100" type="submit">Sign in</button></form></div></div></main>`)
 }
 
-func renderAdminUsersPage(admins []models.AdminUser, appName string) string {
+func renderAdminUsersPage(admins []models.AdminUser, appName string, adminRole string) string {
 	var rows strings.Builder
 	for _, admin := range admins {
 		status := "active"
@@ -870,7 +909,8 @@ func renderAdminUsersPage(admins []models.AdminUser, appName string) string {
 	if rows.Len() == 0 {
 		rows.WriteString(`<tr><td colspan="4" class="text-body-secondary">No admin users found.</td></tr>`)
 	}
-	return renderPage("Admin Users", `<main class="container py-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Admin users</p></div><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="/admin/users/new">New admin</a><a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div></div><div class="card"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div></main>`)
+	body := `<div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">Admin users</h1><p class="text-body-secondary mb-0">Manage administrative accounts</p></div><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="/admin/users/new">New admin</a><a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div></div><div class="card"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
+	return renderAdminShell(appName, adminRole, "admin-users", `<div class="container py-4 py-lg-5">`+body+`</div>`)
 }
 
 type adminForm struct {
@@ -909,7 +949,7 @@ func adminFormFromAdmin(admin *models.AdminUser) adminForm {
 	return adminForm{Username: admin.Username, Email: admin.Email, Role: admin.Role}
 }
 
-func renderAdminUserFormPage(title, action string, form adminForm, editing bool, appName string, errors []string) string {
+func renderAdminUserFormPage(title, action string, form adminForm, editing bool, appName string, adminRole string, errors []string) string {
 	var alert strings.Builder
 	for _, errMsg := range errors {
 		alert.WriteString(`<div class="alert alert-danger">` + html.EscapeString(errMsg) + `</div>`)
@@ -926,7 +966,8 @@ func renderAdminUserFormPage(title, action string, form adminForm, editing bool,
 	if editing {
 		resetHTML = `<hr><form method="post" action="` + html.EscapeString(strings.Replace(action, "/edit", "/reset-password", 1)) + `" class="vstack gap-3"><div><label class="form-label" for="reset_password">Reset password</label><input class="form-control" id="reset_password" name="password" type="password" placeholder="Leave blank to auto-generate"></div><button class="btn btn-outline-primary" type="submit">Reset password</button></form>`
 	}
-	return renderPage(title, `<main class="container py-5" style="max-width: 720px;"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(title) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/users">Back</a></div>` + alert.String() + `<div class="card"><div class="card-body">` + formHTML + resetHTML + `</div></div></div></main>`)
+	body := `<div class="container py-4 py-lg-5" style="max-width: 720px;"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(title) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(appName) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/users">Back</a></div>` + alert.String() + `<div class="card"><div class="card-body">` + formHTML + resetHTML + `</div></div></div></div>`
+	return renderAdminShell(appName, adminRole, "admin-users", body)
 }
 
 func renderRoleOptions(selected string) string {

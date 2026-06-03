@@ -1558,10 +1558,10 @@ Admin Users
 
 Tasks:
 
-* [ ] Build responsive sidebar.
-* [ ] Collapse sidebar on mobile.
-* [ ] Highlight active page.
-* [ ] Hide menu entries based on RBAC permissions.
+* [x] Build responsive sidebar.
+* [x] Collapse sidebar on mobile.
+* [x] Highlight active page.
+* [x] Hide menu entries based on RBAC permissions.
 
 ---
 
@@ -1591,9 +1591,9 @@ For MVP, settings may be env-based only.
 
 Tasks:
 
-* [ ] Create settings page placeholder.
-* [ ] Show current effective config.
-* [ ] Hide secrets.
+* [x] Create settings page placeholder.
+* [x] Show current effective config.
+* [x] Hide secrets.
 * [ ] Add future database-backed settings.
 
 ---
