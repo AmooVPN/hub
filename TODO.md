@@ -1491,10 +1491,10 @@ Requirements:
 
 Tasks:
 
-* [ ] Add OpenAPI spec.
-* [ ] Add Swagger UI.
-* [ ] Add docs generation command.
-* [ ] Keep docs versioned.
+* [x] Add OpenAPI spec.
+* [x] Add Swagger UI.
+* [x] Add docs generation command.
+* [x] Keep docs versioned.
 
 ---
 

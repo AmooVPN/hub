@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: hub API
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /api/v1/client/auth/login:
+    post:
+      summary: Client login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientLoginRequest'
+      responses:
+        '200':
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/client/auth/refresh:
+    post:
+      summary: Refresh client access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/client/auth/logout:
+    post:
+      summary: Revoke refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Logout success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /api/v1/client/me:
+    get:
+      summary: Current client profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Client profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/client/subscription:
+    get:
+      summary: Client subscription links
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+  /api/v1/client/configs:
+    get:
+      summary: Client configs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Client configs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigsResponse'
+  /api/v1/client/usage:
+    get:
+      summary: Client usage
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Client usage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+  /api/v1/client/status:
+    get:
+      summary: Client status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Client status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    ClientLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    MeResponse:
+      type: object
+      properties:
+        client:
+          type: object
+        status:
+          type: string
+        expiry_time:
+          type: string
+          format: date-time
+        remaining_time:
+          type: string
+        traffic_limit_bytes:
+          type: integer
+        upload_bytes:
+          type: integer
+        download_bytes:
+          type: integer
+        total_bytes:
+          type: integer
+        remaining_bytes:
+          type: integer
+        active_configs:
+          type: integer
+        subscription_url:
+          type: string
+        raw_subscription_url:
+          type: string
+        base64_subscription_url:
+          type: string
+        clash_url:
+          type: string
+        singbox_url:
+          type: string
+    SubscriptionResponse:
+      type: object
+      properties:
+        subscription_url:
+          type: string
+        formats:
+          type: object
+          additionalProperties:
+            type: string
+        active:
+          type: boolean
+    ConfigsResponse:
+      type: object
+      properties:
+        configs:
+          type: array
+          items:
+            type: object
+    UsageResponse:
+      type: object
+      properties:
+        upload_bytes:
+          type: integer
+        download_bytes:
+          type: integer
+        total_bytes:
+          type: integer
+        traffic_limit_bytes:
+          type: integer
+        remaining_traffic_bytes:
+          type: integer
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        is_active:
+          type: boolean
+        is_expired:
+          type: boolean
+        expiry_time:
+          type: string
+        remaining_seconds:
+          type: integer
+        remaining_days:
+          type: integer
+        traffic_limit_bytes:
+          type: integer
+        used_traffic_bytes:
+          type: integer
+        remaining_traffic_bytes:
+          type: integer

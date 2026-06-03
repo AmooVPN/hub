@@ -153,6 +153,9 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Get("/api/v1/client/configs", r.requireClientAPIJWT, r.getClientAPIConfigs)
 	app.Get("/api/v1/client/usage", r.requireClientAPIJWT, r.getClientAPIUsage)
 	app.Get("/api/v1/client/status", r.requireClientAPIJWT, r.getClientAPIStatus)
+	app.Get("/api/openapi.json", r.getOpenAPIJSON)
+	app.Get("/api/openapi.yaml", r.getOpenAPIYAML)
+	app.Get("/api/docs", r.getOpenAPIDocs)
 
 	return app
 }
