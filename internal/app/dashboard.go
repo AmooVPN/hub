@@ -24,6 +24,7 @@ type dashboardSummary struct {
 	DisabledClients int64
 	ExpiredClients  int64
 	TotalTraffic    int64
+	RunningSyncJobs int64
 	RecentSyncJobs  []dashboardSyncJob
 	RecentAudits    []models.AuditLog
 	RecentErrors    []dashboardError
@@ -85,6 +86,9 @@ func (r *Runner) loadDashboardSummary(ctx context.Context) (dashboardSummary, er
 		return summary, err
 	}
 	if err := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(upload_bytes + download_bytes), 0) FROM client_attachments`).Scan(&summary.TotalTraffic); err != nil {
+		return summary, err
+	}
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sync_jobs WHERE status = ?`, models.SyncJobStatusRunning).Scan(&summary.RunningSyncJobs); err != nil {
 		return summary, err
 	}
 	if err := r.loadRecentSyncJobs(ctx, &summary); err != nil {
@@ -152,7 +156,7 @@ func renderDashboardPage(admin *models.AdminUser, appName string, summary dashbo
 }
 
 func renderDashboardWidgets(summary dashboardSummary) string {
-	return `<div id="dashboard-widgets" class="row g-3">` + dashboardStatCard("Total panels", summary.TotalPanels, "primary") + dashboardStatCard("Online panels", summary.OnlinePanels, "success") + dashboardStatCard("Offline panels", summary.OfflinePanels, "danger") + dashboardStatCard("Total clients", summary.TotalClients, "primary") + dashboardStatCard("Active clients", summary.ActiveClients, "success") + dashboardStatCard("Expired clients", summary.ExpiredClients, "warning") + dashboardStatCard("Disabled clients", summary.DisabledClients, "secondary") + dashboardTrafficCard(summary.TotalTraffic) + `</div>`
+	return `<div id="dashboard-widgets" class="row g-3">` + dashboardStatCard("Total panels", summary.TotalPanels, "primary") + dashboardStatCard("Online panels", summary.OnlinePanels, "success") + dashboardStatCard("Offline panels", summary.OfflinePanels, "danger") + dashboardStatCard("Running sync jobs", summary.RunningSyncJobs, "info") + dashboardStatCard("Total clients", summary.TotalClients, "primary") + dashboardStatCard("Active clients", summary.ActiveClients, "success") + dashboardStatCard("Expired clients", summary.ExpiredClients, "warning") + dashboardStatCard("Disabled clients", summary.DisabledClients, "secondary") + dashboardTrafficCard(summary.TotalTraffic) + `</div>`
 }
 
 func dashboardStatCard(title string, value int64, tone string) string {

@@ -16,10 +16,10 @@ type Migration struct {
 }
 
 var migrations = []Migration{
-	{
-		Version: 1,
-		Name:    "initial_schema",
-		SQL: []string{
+		{
+			Version: 1,
+			Name:    "initial_schema",
+			SQL: []string{
 			`CREATE TABLE IF NOT EXISTS schema_migrations (
 				version INTEGER PRIMARY KEY,
 				applied_at DATETIME NOT NULL
@@ -154,6 +154,13 @@ var migrations = []Migration{
 		Name:    "add_client_attachment_unique_index",
 		SQL: []string{
 			`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_attachments_client_panel_inbound ON client_attachments(client_id, panel_id, inbound_id);`,
+		},
+	},
+	{
+		Version: 4,
+		Name:    "add_sync_job_retry_count",
+		SQL: []string{
+			`ALTER TABLE sync_jobs ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;`,
 		},
 	},
 }

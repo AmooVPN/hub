@@ -28,6 +28,9 @@ type ClientRepository interface {
 	Count(context.Context) (int64, error)
 	Create(context.Context, *models.Client) error
 	FindByUsername(context.Context, string) (*models.Client, error)
+	Update(context.Context, *models.Client) error
+	UpdateSubscriptionToken(context.Context, int64, string) error
+	UpdateStatus(context.Context, int64, string) error
 	UpdatePassword(context.Context, int64, string) error
 }
 
@@ -51,12 +54,14 @@ type InboundRepository interface {
 type AuditRepository interface {
 	Create(context.Context, *models.AuditLog) error
 	ListRecent(context.Context, int) ([]models.AuditLog, error)
+	ListByTarget(context.Context, string, int64, int) ([]models.AuditLog, error)
 }
 
 type SyncJobRepository interface {
 	Create(context.Context, *models.SyncJob) error
 	Update(context.Context, *models.SyncJob) error
 	FindByID(context.Context, int64) (*models.SyncJob, error)
+	DeleteCompletedBefore(context.Context, time.Time) (int64, error)
 }
 
 type RefreshTokenRepository interface {
@@ -221,6 +226,27 @@ func (r *sqliteClientRepository) FindByUsername(ctx context.Context, username st
 	return scanClient(row)
 }
 
+func (r *sqliteClientRepository) Update(ctx context.Context, client *models.Client) error {
+	if client == nil {
+		return errors.New("client is nil")
+	}
+	if client.UpdatedAt.IsZero() {
+		client.UpdatedAt = time.Now().UTC()
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE clients SET username = ?, display_name = ?, email = ?, status = ?, traffic_limit_bytes = ?, expiry_time = ?, updated_at = ? WHERE id = ?`, client.Username, nullString(client.DisplayName), nullString(client.Email), client.Status, client.TrafficLimitBytes, nullTime(client.ExpiryTime), client.UpdatedAt.UTC(), client.ID)
+	return err
+}
+
+func (r *sqliteClientRepository) UpdateSubscriptionToken(ctx context.Context, id int64, token string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE clients SET subscription_token = ?, updated_at = ? WHERE id = ?`, token, time.Now().UTC(), id)
+	return err
+}
+
+func (r *sqliteClientRepository) UpdateStatus(ctx context.Context, id int64, status string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE clients SET status = ?, updated_at = ? WHERE id = ?`, status, time.Now().UTC(), id)
+	return err
+}
+
 func (r *sqliteClientRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE clients SET password_hash = ?, updated_at = ? WHERE id = ?`, passwordHash, time.Now().UTC(), id)
 	return err
@@ -366,6 +392,38 @@ func (r *sqliteAuditRepository) ListRecent(ctx context.Context, limit int) ([]mo
 	return items, rows.Err()
 }
 
+func (r *sqliteAuditRepository) ListByTarget(ctx context.Context, targetType string, targetID int64, limit int) ([]models.AuditLog, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT id, actor_type, actor_id, action, target_type, target_id, metadata_json, created_at FROM audit_logs WHERE target_type = ? AND target_id = ? ORDER BY id DESC LIMIT ?`, targetType, targetID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []models.AuditLog
+	for rows.Next() {
+		var audit models.AuditLog
+		var actorID, targetIDVal sql.NullInt64
+		var targetTypeVal, metadata sql.NullString
+		if err := rows.Scan(&audit.ID, &audit.ActorType, &actorID, &audit.Action, &targetTypeVal, &targetIDVal, &metadata, &audit.CreatedAt); err != nil {
+			return nil, err
+		}
+		if actorID.Valid {
+			v := actorID.Int64
+			audit.ActorID = &v
+		}
+		if targetIDVal.Valid {
+			v := targetIDVal.Int64
+			audit.TargetID = &v
+		}
+		audit.TargetType = targetTypeVal.String
+		audit.MetadataJSON = metadata.String
+		items = append(items, audit)
+	}
+	return items, rows.Err()
+}
+
 func (r *sqliteSyncJobRepository) Create(ctx context.Context, job *models.SyncJob) error {
 	if job == nil {
 		return errors.New("sync job is nil")
@@ -377,7 +435,7 @@ func (r *sqliteSyncJobRepository) Create(ctx context.Context, job *models.SyncJo
 		now := job.CreatedAt
 		job.StartedAt = &now
 	}
-	result, err := r.db.ExecContext(ctx, `INSERT INTO sync_jobs (panel_id, job_type, status, message, started_at, finished_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, job.PanelID, job.JobType, job.Status, nullString(job.Message), nullTime(job.StartedAt), nullTime(job.FinishedAt), job.CreatedAt.UTC())
+	result, err := r.db.ExecContext(ctx, `INSERT INTO sync_jobs (panel_id, job_type, status, message, retry_count, started_at, finished_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, job.PanelID, job.JobType, job.Status, nullString(job.Message), job.RetryCount, nullTime(job.StartedAt), nullTime(job.FinishedAt), job.CreatedAt.UTC())
 	if err != nil {
 		return err
 	}
@@ -393,13 +451,53 @@ func (r *sqliteSyncJobRepository) Update(ctx context.Context, job *models.SyncJo
 	if job == nil {
 		return errors.New("sync job is nil")
 	}
-	_, err := r.db.ExecContext(ctx, `UPDATE sync_jobs SET panel_id = ?, job_type = ?, status = ?, message = ?, started_at = ?, finished_at = ? WHERE id = ?`, job.PanelID, job.JobType, job.Status, nullString(job.Message), nullTime(job.StartedAt), nullTime(job.FinishedAt), job.ID)
+	_, err := r.db.ExecContext(ctx, `UPDATE sync_jobs SET panel_id = ?, job_type = ?, status = ?, message = ?, retry_count = ?, started_at = ?, finished_at = ? WHERE id = ?`, job.PanelID, job.JobType, job.Status, nullString(job.Message), job.RetryCount, nullTime(job.StartedAt), nullTime(job.FinishedAt), job.ID)
 	return err
 }
 
 func (r *sqliteSyncJobRepository) FindByID(ctx context.Context, id int64) (*models.SyncJob, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT id, panel_id, job_type, status, message, started_at, finished_at, created_at FROM sync_jobs WHERE id = ?`, id)
+	row := r.db.QueryRowContext(ctx, `SELECT id, panel_id, job_type, status, message, retry_count, started_at, finished_at, created_at FROM sync_jobs WHERE id = ?`, id)
 	return scanSyncJob(row)
+}
+
+func (r *sqliteSyncJobRepository) DeleteCompletedBefore(ctx context.Context, before time.Time) (int64, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, status, COALESCE(finished_at, started_at, created_at) FROM sync_jobs`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		var status string
+		var whenRaw string
+		if err := rows.Scan(&id, &status, &whenRaw); err != nil {
+			return 0, err
+		}
+		when, err := parseSQLiteTime(whenRaw)
+		if err != nil {
+			return 0, err
+		}
+		if (status == models.SyncJobStatusSuccess || status == models.SyncJobStatusFailed || status == models.SyncJobStatusCancelled) && when.Before(before.UTC()) {
+			ids = append(ids, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, 0, len(ids))
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	result, err := r.db.ExecContext(ctx, `DELETE FROM sync_jobs WHERE id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 func (r *sqliteInboundRepository) Upsert(ctx context.Context, inbound *models.Inbound) error {
@@ -501,7 +599,7 @@ func scanSyncJob(scanner interface{ Scan(...any) error }) (*models.SyncJob, erro
 	var panelID sql.NullInt64
 	var message sql.NullString
 	var startedAt, finishedAt sql.NullTime
-	if err := scanner.Scan(&job.ID, &panelID, &job.JobType, &job.Status, &message, &startedAt, &finishedAt, &job.CreatedAt); err != nil {
+	if err := scanner.Scan(&job.ID, &panelID, &job.JobType, &job.Status, &message, &job.RetryCount, &startedAt, &finishedAt, &job.CreatedAt); err != nil {
 		return nil, err
 	}
 	if panelID.Valid {
@@ -582,4 +680,13 @@ func must[T any](value T, err error) T {
 		panic(fmt.Sprintf("unexpected error: %v", err))
 	}
 	return value
+}
+
+func parseSQLiteTime(value string) (time.Time, error) {
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05 -0700 MST", "2006-01-02 15:04:05"} {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.UTC(), nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("parse sqlite time %q", value)
 }

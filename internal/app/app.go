@@ -21,6 +21,7 @@ import (
 	"github.com/AmooVPM/hub/internal/database"
 	"github.com/AmooVPM/hub/internal/models"
 	"github.com/AmooVPM/hub/internal/repositories"
+	"github.com/AmooVPM/hub/internal/services"
 	"github.com/AmooVPM/hub/internal/security"
 )
 
@@ -33,7 +34,9 @@ type Runner struct {
 	refreshes  repositories.RefreshTokenRepository
 	panels     repositories.PanelRepository
 	inbounds   repositories.InboundRepository
-	syncJobs   repositories.SyncJobRepository
+	jobs       *services.JobService
+	panelHealth *services.HealthService
+	backups    *services.BackupService
 	audit      repositories.AuditRepository
 	logger     *slog.Logger
 	loginLocks *attemptTracker
@@ -98,8 +101,10 @@ func New(logger *slog.Logger) (*Runner, error) {
 		refreshes:  refreshes,
 		panels:     panels,
 		inbounds:   inbounds,
+		jobs:       services.NewJobService(syncJobs),
+		panelHealth: services.NewHealthService(services.NewXUIHealthProbe(cfg.AppName, cfg.HUBSecretKey)),
+		backups:    services.NewBackupService(),
 		audit:      audit,
-		syncJobs:   syncJobs,
 		logger:     logger,
 		loginLocks: newAttemptTracker(5, 15*time.Minute),
 	}
@@ -136,7 +141,17 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/sync/traffic", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncTraffic)
 	app.Get("/admin/sync-jobs", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobs)
 	app.Get("/admin/sync-jobs/:id", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobDetail)
+	app.Post("/admin/sync-jobs/:id/retry", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobRetry)
 	app.Get("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.getAdminSettings)
+	app.Get("/admin/backups", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackups)
+	app.Get("/admin/backups/export", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackupsExport)
+	app.Post("/admin/backups/import", security.RequirePermission(security.PermissionViewDashboard), r.postAdminBackupsImport)
+	app.Get("/admin/backups/download/:filename", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackupsDownload)
+	app.Post("/admin/backups/delete/:filename", security.RequirePermission(security.PermissionViewDashboard), r.postAdminBackupsDelete)
+	app.Get("/admin/subscriptions", security.RequirePermission(security.PermissionManageSubscriptions), r.getAdminSubscriptions)
+	app.Get("/admin/subscriptions/:client_id", security.RequirePermission(security.PermissionManageSubscriptions), r.getAdminSubscriptionDetail)
+	app.Post("/admin/subscriptions/:client_id/regenerate", security.RequirePermission(security.PermissionManageSubscriptions), r.postAdminSubscriptionRegenerate)
+	app.Post("/admin/subscriptions/:client_id/invalidate-cache", security.RequirePermission(security.PermissionManageSubscriptions), r.postAdminSubscriptionInvalidateCache)
 	app.Get("/admin/panels", security.RequirePermission(security.PermissionManagePanels), r.getAdminPanels)
 	app.Get("/admin/panels/new", security.RequirePermission(security.PermissionManagePanels), r.getAdminPanelNew)
 	app.Post("/admin/panels", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelCreate)
@@ -145,6 +160,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/panels/:id", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelUpdate)
 	app.Post("/admin/panels/:id/delete", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelDelete)
 	app.Post("/admin/panels/:id/test", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelTest)
+	app.Post("/admin/panels/:id/health", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelHealth)
 	app.Post("/admin/panels/:id/sync", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelSync)
 	app.Post("/admin/panels/:id/sync-traffic", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelSyncTraffic)
 	app.Post("/admin/panels/:id/clear-session", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelClearSession)
@@ -154,6 +170,12 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/inbounds/:id/refresh", security.RequirePermission(security.PermissionManagePanels), r.postAdminInboundRefresh)
 	app.Get("/admin/clients", security.RequirePermission(security.PermissionViewClients), r.getAdminClients)
 	app.Get("/admin/clients/:id", security.RequirePermission(security.PermissionViewClients), r.getAdminClientDetail)
+	app.Get("/admin/clients/:id/edit", security.RequirePermission(security.PermissionManageClients), r.getAdminClientEdit)
+	app.Post("/admin/clients/:id", security.RequirePermission(security.PermissionManageClients), r.postAdminClientUpdate)
+	app.Post("/admin/clients/:id/disable", security.RequirePermission(security.PermissionManageClients), r.postAdminClientDisable)
+	app.Post("/admin/clients/:id/enable", security.RequirePermission(security.PermissionManageClients), r.postAdminClientEnable)
+	app.Post("/admin/clients/:id/reset-password", security.RequirePermission(security.PermissionManageClients), r.postAdminClientResetPassword)
+	app.Post("/admin/clients/:id/regenerate-token", security.RequirePermission(security.PermissionManageClients), r.postAdminClientRegenerateSubscriptionToken)
 	app.Get("/admin/clients/:id/attachments", security.RequirePermission(security.PermissionManageClients), r.getAdminClientAttachments)
 	app.Post("/admin/clients/:id/attachments", security.RequirePermission(security.PermissionManageClients), r.postAdminClientAttachmentCreate)
 	app.Post("/admin/clients/:id/attachments/:attachment_id/delete", security.RequirePermission(security.PermissionManageClients), r.postAdminClientAttachmentDelete)

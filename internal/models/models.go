@@ -156,6 +156,7 @@ type SyncJob struct {
 	JobType    string     `json:"job_type"`
 	Status     string     `json:"status"`
 	Message    string     `json:"message,omitempty"`
+	RetryCount int64      `json:"retry_count"`
 	StartedAt  *time.Time `json:"started_at,omitempty"`
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`

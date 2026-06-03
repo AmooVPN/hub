@@ -22,7 +22,7 @@ func renderAdminShell(appName string, adminRole string, activePage string, conte
 		{Label: "Clients", Href: "/admin/clients", Active: activePage == "clients", Allowed: security.HasPermission(adminRole, security.PermissionManageClients) || security.HasPermission(adminRole, security.PermissionViewClients)},
 		{Label: "Subscriptions", Href: "/admin/subscriptions", Active: activePage == "subscriptions", Allowed: security.HasPermission(adminRole, security.PermissionManageSubscriptions) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
 		{Label: "Sync Jobs", Href: "/admin/sync-jobs", Active: activePage == "sync-jobs", Allowed: security.HasPermission(adminRole, security.PermissionViewDashboard)},
-		{Label: "Backups", Href: "/admin/backups", Active: activePage == "backups", Allowed: security.HasPermission(adminRole, security.PermissionManageBackups) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
+		{Label: "Backups", Href: "/admin/backups", Active: activePage == "backups", Allowed: security.HasRole(adminRole, security.RoleOwner, security.RoleAdmin)},
 		{Label: "Audit Logs", Href: "/admin/audit-logs", Active: activePage == "audit-logs", Allowed: security.HasPermission(adminRole, security.PermissionViewAuditLogs)},
 		{Label: "Settings", Href: "/admin/settings", Active: activePage == "settings", Allowed: security.HasPermission(adminRole, security.PermissionManageSettings)},
 		{Label: "Admin Users", Href: "/admin/users", Active: activePage == "admin-users", Allowed: security.HasPermission(adminRole, security.PermissionManageAdmins)},

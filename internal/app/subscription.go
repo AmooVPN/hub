@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -92,7 +93,7 @@ func (r *Runner) invalidateSubscriptionCache(ctx context.Context, token string) 
 	if r.redis == nil || strings.TrimSpace(token) == "" {
 		return
 	}
-	_ = r.redis.Del(ctx, subscriptionCacheKey(token, "raw"), subscriptionCacheKey(token, "base64"), subscriptionCacheKey(token, "clash"), subscriptionCacheKey(token, "singbox")).Err()
+	_ = r.redis.Del(ctx, subscriptionCacheKey(token, "raw"), subscriptionCacheKey(token, "base64"), subscriptionCacheKey(token, "clash"), subscriptionCacheKey(token, "singbox"), subscriptionCacheMetaKey(token)).Err()
 }
 
 func (r *Runner) loadSubscriptionCache(ctx context.Context, token, format string) (string, bool) {
@@ -110,9 +111,37 @@ func (r *Runner) storeSubscriptionCache(ctx context.Context, token, format, valu
 	if r.redis == nil || strings.TrimSpace(token) == "" {
 		return nil
 	}
-	return r.redis.Set(ctx, subscriptionCacheKey(token, format), value, 5*time.Minute).Err()
+	if err := r.redis.Set(ctx, subscriptionCacheKey(token, format), value, 5*time.Minute).Err(); err != nil {
+		return err
+	}
+	meta := map[string]string{"cached_at": time.Now().UTC().Format(time.RFC3339)}
+	metaJSON, _ := json.Marshal(meta)
+	return r.redis.Set(ctx, subscriptionCacheMetaKey(token), metaJSON, 5*time.Minute).Err()
+}
+
+func (r *Runner) loadSubscriptionCacheMeta(ctx context.Context, token string) (time.Time, bool) {
+	if r.redis == nil || strings.TrimSpace(token) == "" {
+		return time.Time{}, false
+	}
+	value, err := r.redis.Get(ctx, subscriptionCacheMetaKey(token)).Result()
+	if err != nil {
+		return time.Time{}, false
+	}
+	var meta struct{ CachedAt string `json:"cached_at"` }
+	if err := json.Unmarshal([]byte(value), &meta); err != nil || meta.CachedAt == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse(time.RFC3339, meta.CachedAt)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 func subscriptionCacheKey(token, format string) string {
 	return fmt.Sprintf("hub:sub:%s:%s", token, strings.ToLower(format))
+}
+
+func subscriptionCacheMetaKey(token string) string {
+	return fmt.Sprintf("hub:sub:%s:meta", token)
 }

@@ -44,6 +44,15 @@ type attachmentBatchResult struct {
 	Failures  []string
 }
 
+type clientEditForm struct {
+	Username         string
+	DisplayName      string
+	Email            string
+	Status           string
+	TrafficLimitText string
+	ExpiryText       string
+}
+
 func (r *Runner) getAdminClients(c *fiber.Ctx) error {
 	admin, ok := currentAdmin(c)
 	if !ok {
@@ -57,7 +66,190 @@ func (r *Runner) getAdminClients(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getAdminClientDetail(c *fiber.Ctx) error {
-	return r.getAdminClientAttachments(c)
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	attachments, err := r.loadClientAttachments(c.UserContext(), client.ID)
+	if err != nil {
+		return err
+	}
+	configs, err := r.loadClientConfigs(c.UserContext(), client.ID)
+	if err != nil {
+		return err
+	}
+	audits, err := r.loadClientAudits(c.UserContext(), client.ID)
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderAdminClientDetailPage(client, summary, attachments, configs, audits, r.cfg.AppName, admin.Role, r.cfg.AppBaseURL))
+}
+
+func (r *Runner) getAdminClientEdit(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderAdminClientEditPage(clientEditFormFromClient(client), "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, nil))
+}
+
+func (r *Runner) postAdminClientUpdate(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	form := parseClientEditForm(c)
+	if form.Username == "" {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientEditPage(form, "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, []string{"username is required"}))
+	}
+	if form.Status != "active" && form.Status != "disabled" {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientEditPage(form, "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, []string{"invalid status"}))
+	}
+	updated := *client
+	updated.Username = form.Username
+	updated.DisplayName = form.DisplayName
+	updated.Email = form.Email
+	updated.Status = form.Status
+	if form.TrafficLimitText != "" {
+		limit, err := strconv.ParseInt(form.TrafficLimitText, 10, 64)
+		if err != nil || limit < 0 {
+			return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientEditPage(form, "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, []string{"traffic limit must be a non-negative integer"}))
+		}
+		updated.TrafficLimitBytes = limit
+	}
+	if strings.TrimSpace(form.ExpiryText) == "" {
+		updated.ExpiryTime = nil
+	} else {
+		expiry, err := time.Parse(time.RFC3339, strings.TrimSpace(form.ExpiryText))
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientEditPage(form, "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, []string{"expiry must be RFC3339"}))
+		}
+		updated.ExpiryTime = &expiry
+	}
+	updated.UpdatedAt = time.Now().UTC()
+	if err := r.clients.Update(c.UserContext(), &updated); err != nil {
+		return err
+	}
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_update", "client", &updated.ID, map[string]any{"username": updated.Username, "status": updated.Status})
+	return c.Redirect(fmt.Sprintf("/admin/clients/%d", updated.ID), fiber.StatusFound)
+}
+
+func parseClientEditForm(c *fiber.Ctx) clientEditForm {
+	return clientEditForm{
+		Username:         strings.TrimSpace(c.FormValue("username")),
+		DisplayName:      strings.TrimSpace(c.FormValue("display_name")),
+		Email:            strings.TrimSpace(c.FormValue("email")),
+		Status:           strings.TrimSpace(c.FormValue("status")),
+		TrafficLimitText: strings.TrimSpace(c.FormValue("traffic_limit_bytes")),
+		ExpiryText:       strings.TrimSpace(c.FormValue("expiry_time")),
+	}
+}
+
+func clientEditFormFromClient(client *models.Client) clientEditForm {
+	form := clientEditForm{}
+	if client == nil {
+		return form
+	}
+	form.Username = client.Username
+	form.DisplayName = client.DisplayName
+	form.Email = client.Email
+	form.Status = client.Status
+	form.TrafficLimitText = strconv.FormatInt(client.TrafficLimitBytes, 10)
+	if client.ExpiryTime != nil {
+		form.ExpiryText = client.ExpiryTime.UTC().Format(time.RFC3339)
+	}
+	return form
+}
+
+func (r *Runner) postAdminClientDisable(c *fiber.Ctx) error {
+	return r.postAdminClientStatus(c, "disabled")
+}
+
+func (r *Runner) postAdminClientEnable(c *fiber.Ctx) error {
+	return r.postAdminClientStatus(c, "active")
+}
+
+func (r *Runner) postAdminClientStatus(c *fiber.Ctx, status string) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	if err := r.clients.UpdateStatus(c.UserContext(), client.ID, status); err != nil {
+		return err
+	}
+	client.Status = status
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_status_update", "client", &client.ID, map[string]any{"status": status})
+	return c.Redirect(fmt.Sprintf("/admin/clients/%d", client.ID), fiber.StatusFound)
+}
+
+func (r *Runner) postAdminClientResetPassword(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	newPassword := strings.TrimSpace(c.FormValue("password"))
+	if newPassword == "" {
+		newPassword, err = security.RandomToken(12)
+		if err != nil {
+			return err
+		}
+	}
+	hash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := r.clients.UpdatePassword(c.UserContext(), client.ID, hash); err != nil {
+		return err
+	}
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_password_reset", "client", &client.ID, nil)
+	return c.Type("html").SendString(renderPasswordResetResultPage(client.Username, newPassword, r.cfg.AppName))
+}
+
+func (r *Runner) postAdminClientRegenerateSubscriptionToken(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	newToken, err := security.RandomToken(32)
+	if err != nil {
+		return err
+	}
+	oldToken := client.SubscriptionToken
+	if err := r.clients.UpdateSubscriptionToken(c.UserContext(), client.ID, newToken); err != nil {
+		return err
+	}
+	r.invalidateSubscriptionCache(c.UserContext(), oldToken)
+	client.SubscriptionToken = newToken
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_subscription_token_regenerate", "client", &client.ID, nil)
+	return c.Redirect(fmt.Sprintf("/admin/clients/%d", client.ID), fiber.StatusFound)
 }
 
 func (r *Runner) getAdminClientAttachments(c *fiber.Ctx) error {
@@ -399,6 +591,13 @@ func (r *Runner) loadClientAttachments(ctx context.Context, clientID int64) ([]m
 func (r *Runner) loadClientAttachmentByID(ctx context.Context, id int64) (*models.ClientAttachment, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT id, client_id, panel_id, inbound_id, remote_client_id, remote_email, enabled, upload_bytes, download_bytes, traffic_limit_bytes, expiry_time, raw_config, created_at, updated_at FROM client_attachments WHERE id = ?`, id)
 	return scanClientAttachment(row)
+}
+
+func (r *Runner) loadClientAudits(ctx context.Context, clientID int64) ([]models.AuditLog, error) {
+	if r.audit == nil {
+		return nil, nil
+	}
+	return r.audit.ListByTarget(ctx, "client", clientID, 25)
 }
 
 func (r *Runner) loadInboundOptions(ctx context.Context) ([]inboundGroup, error) {
@@ -761,6 +960,66 @@ func renderAdminClientAttachmentsPage(client *models.Client, attachments []model
 
 func renderAdminClientAttachmentsError(client *models.Client, appName, adminRole, message string) string {
 	return renderAdminClientAttachmentsPage(client, nil, nil, appName, adminRole, []string{message})
+}
+
+func renderAdminClientDetailPage(client *models.Client, summary clientSummary, attachments []models.ClientAttachment, configs []clientConfigRow, audits []models.AuditLog, appName, adminRole, baseURL string) string {
+	statusBadge := "secondary"
+	switch strings.ToLower(summary.StatusText) {
+	case "active":
+		statusBadge = "success"
+	case "expired":
+		statusBadge = "warning"
+	case "disabled":
+		statusBadge = "dark"
+	}
+  buttons := `<div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/edit">Edit</a><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Manage attachments</a><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/regenerate-token"><button class="btn btn-outline-primary btn-sm" type="submit">Regenerate subscription token</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/reset-password"><button class="btn btn-outline-warning btn-sm" type="submit">Reset password</button></form>`
+	if client.Status == "disabled" {
+		buttons += `<form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/enable"><button class="btn btn-outline-success btn-sm" type="submit">Enable</button></form>`
+	} else {
+		buttons += `<form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/disable"><button class="btn btn-outline-danger btn-sm" type="submit">Disable</button></form>`
+	}
+	buttons += `<a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>`
+	var attachmentRows strings.Builder
+	for _, attachment := range attachments {
+		attachmentRows.WriteString(`<tr><td>` + html.EscapeString(strconv.FormatInt(attachment.ID, 10)) + `</td><td>` + html.EscapeString(strconv.FormatInt(attachment.PanelID, 10)) + `</td><td>` + html.EscapeString(strconv.FormatInt(attachment.InboundID, 10)) + `</td><td>` + attachmentStateBadge(attachment.Enabled) + `</td><td>` + html.EscapeString(defaultString(attachment.RemoteEmail, "-")) + `</td></tr>`)
+	}
+	if attachmentRows.Len() == 0 {
+		attachmentRows.WriteString(`<tr><td colspan="5" class="text-body-secondary">No attachments yet.</td></tr>`)
+	}
+	var configRows strings.Builder
+	for _, cfg := range configs {
+		configRows.WriteString(`<tr><td>` + html.EscapeString(cfg.PanelName) + `</td><td>` + html.EscapeString(cfg.InboundRemark) + `</td><td>` + html.EscapeString(cfg.Protocol) + `</td><td>` + html.EscapeString(cfg.Status) + `</td><td class="text-nowrap"><input class="form-control form-control-sm d-inline-block w-auto" value="` + html.EscapeString(cfg.CopyValue) + `" readonly><button class="btn btn-outline-secondary btn-sm ms-2" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copy</button></td></tr>`)
+	}
+	if configRows.Len() == 0 {
+		configRows.WriteString(`<tr><td colspan="5" class="text-body-secondary">No active configs.</td></tr>`)
+	}
+	var auditRows strings.Builder
+	for _, audit := range audits {
+		auditRows.WriteString(`<tr><td>` + html.EscapeString(audit.Action) + `</td><td>` + html.EscapeString(audit.ActorType) + `</td><td>` + html.EscapeString(defaultString(audit.TargetType, "-")) + `</td><td>` + html.EscapeString(audit.CreatedAt.Format(time.RFC3339)) + `</td></tr>`)
+	}
+	if auditRows.Len() == 0 {
+		auditRows.WriteString(`<tr><td colspan="4" class="text-body-secondary">No audit history found.</td></tr>`)
+	}
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(client.Username) + `</h1><p class="text-body-secondary mb-0">Client detail</p></div>` + buttons + `</div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm h-100"><div class="card-header fw-semibold">Identity & usage</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8"><span class="badge text-bg-` + statusBadge + `">` + html.EscapeString(summary.StatusText) + `</span></dd><dt class="col-sm-4">Expiry</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(summary.ExpiryText, "No expiry")) + `</dd><dt class="col-sm-4">Usage</dt><dd class="col-sm-8">` + html.EscapeString(formatBytes(summary.TotalBytes)) + `</dd><dt class="col-sm-4">Traffic limit</dt><dd class="col-sm-8">` + html.EscapeString(formatBytes(client.TrafficLimitBytes)) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm h-100"><div class="card-header fw-semibold">Subscription</div><div class="card-body vstack gap-3"><div><div class="text-body-secondary small">Subscription URL</div><div class="input-group"><input class="form-control" value="` + html.EscapeString(strings.TrimRight(baseURL, "/")+"/sub/"+client.SubscriptionToken) + `" readonly><button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copy</button></div></div><div><div class="text-body-secondary small">Token</div><div class="input-group"><input class="form-control" value="` + html.EscapeString(client.SubscriptionToken) + `" readonly><button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copy</button></div></div></div></div></div><div class="col-12"><div class="card shadow-sm"><div class="card-header fw-semibold">Attached inbounds</div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>ID</th><th>Panel</th><th>Inbound</th><th>Status</th><th>Email</th></tr></thead><tbody>` + attachmentRows.String() + `</tbody></table></div></div></div><div class="col-12"><div class="card shadow-sm"><div class="card-header fw-semibold">Configs</div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Panel</th><th>Inbound</th><th>Protocol</th><th>Status</th><th>Copy</th></tr></thead><tbody>` + configRows.String() + `</tbody></table></div></div></div><div class="col-12"><div class="card shadow-sm"><div class="card-header fw-semibold">Audit history</div><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>When</th></tr></thead><tbody>` + auditRows.String() + `</tbody></table></div></div></div></div>`
+	return renderAdminShell(appName, adminRole, "clients", body)
+}
+
+func renderAdminClientEditPage(form clientEditForm, action, appName, adminRole string, errors []string) string {
+	var alert strings.Builder
+	for _, errMsg := range errors {
+		alert.WriteString(`<div class="alert alert-danger">` + html.EscapeString(errMsg) + `</div>`)
+	}
+	statusOptions := []string{"active", "disabled"}
+	var opts strings.Builder
+	for _, status := range statusOptions {
+		selected := ""
+		if form.Status == status {
+			selected = ` selected`
+		}
+		opts.WriteString(`<option value="` + status + `"` + selected + `>` + html.EscapeString(strings.Title(status)) + `</option>`)
+	}
+	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">Edit client</h1><p class="text-body-secondary mb-0">Update identity and limits</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="display_name">Display name</label><input class="form-control" id="display_name" name="display_name" value="` + html.EscapeString(form.DisplayName) + `"></div><div><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="` + html.EscapeString(form.Email) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div><label class="form-label" for="traffic_limit_bytes">Traffic limit bytes</label><input class="form-control" id="traffic_limit_bytes" name="traffic_limit_bytes" inputmode="numeric" value="` + html.EscapeString(form.TrafficLimitText) + `"></div><div><label class="form-label" for="expiry_time">Expiry time (RFC3339)</label><input class="form-control" id="expiry_time" name="expiry_time" value="` + html.EscapeString(form.ExpiryText) + `"><div class="form-text">Leave blank to clear the expiry.</div></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
+	return renderAdminShell(appName, adminRole, "clients", body)
 }
 
 func attachmentStateBadge(enabled bool) string {

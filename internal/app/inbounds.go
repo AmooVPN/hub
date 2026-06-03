@@ -223,17 +223,7 @@ func (r *Runner) syncPanelInbounds(ctx context.Context, panel *models.Panel) err
 }
 
 func (r *Runner) updateSyncJob(ctx context.Context, jobID int64, status, message string, finishedAt *time.Time) error {
-	job, err := r.syncJobs.FindByID(ctx, jobID)
-	if err != nil {
-		return err
-	}
-	job.Status = status
-	job.Message = message
-	job.FinishedAt = finishedAt
-	if finishedAt != nil {
-		job.FinishedAt = finishedAt
-	}
-	return r.syncJobs.Update(ctx, job)
+	return r.jobs.Update(ctx, jobID, status, message, finishedAt)
 }
 
 func (r *Runner) finishInboundSync(ctx context.Context, jobID int64, panel *models.Panel, status, message string, cause error) error {

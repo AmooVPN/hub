@@ -60,6 +60,40 @@ func TestSyncJobRepositoryCreateUpdateFindByID(t *testing.T) {
 	}
 }
 
+func TestSyncJobRepositoryDeleteCompletedBefore(t *testing.T) {
+	db := openTestDatabase(t)
+	panelRepo := NewPanelRepository(db)
+	repo := NewSyncJobRepository(db)
+	panel := &models.Panel{Name: "panel-1", BaseURL: "https://panel.example", Username: "admin", EncryptedPassword: "enc", Status: "offline"}
+	if err := panelRepo.Create(context.Background(), panel); err != nil {
+		t.Fatalf("create panel: %v", err)
+	}
+	panelID := panel.ID
+	oldJob := &models.SyncJob{PanelID: &panelID, JobType: "traffic_sync", Status: models.SyncJobStatusSuccess, FinishedAt: ptrTime(time.Now().UTC().Add(-40 * 24 * time.Hour)), CreatedAt: time.Now().UTC().Add(-40 * 24 * time.Hour)}
+	newJob := &models.SyncJob{PanelID: &panelID, JobType: "traffic_sync", Status: models.SyncJobStatusRunning, CreatedAt: time.Now().UTC()}
+	if err := repo.Create(context.Background(), oldJob); err != nil {
+		t.Fatalf("create old job: %v", err)
+	}
+	if err := repo.Create(context.Background(), newJob); err != nil {
+		t.Fatalf("create new job: %v", err)
+	}
+	deleted, err := repo.DeleteCompletedBefore(context.Background(), time.Now().UTC().Add(-30*24*time.Hour))
+	if err != nil {
+		t.Fatalf("delete completed before: %v", err)
+	}
+	if deleted == 0 {
+		t.Fatal("expected completed job to be deleted")
+	}
+	if _, err := repo.FindByID(context.Background(), oldJob.ID); err == nil {
+		t.Fatal("expected old job to be deleted")
+	}
+	if _, err := repo.FindByID(context.Background(), newJob.ID); err != nil {
+		t.Fatalf("expected new job to remain: %v", err)
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }
+
 func openTestDatabase(t *testing.T) *sql.DB {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")

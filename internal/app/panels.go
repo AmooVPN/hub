@@ -170,6 +170,32 @@ func (r *Runner) postAdminPanelTest(c *fiber.Ctx) error {
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
 }
 
+func (r *Runner) postAdminPanelHealth(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	panel, err := r.loadPanel(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	result, err := r.panelHealth.Check(c.UserContext(), panel)
+	panel.Status = result.Status
+	panel.LastError = result.Message
+	panel.UpdatedAt = time.Now().UTC()
+	if result.Version != "" {
+		panel.Version = result.Version
+	}
+	if err := r.panels.Update(c.UserContext(), panel); err != nil {
+		return err
+	}
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_health_check", "panel", &panel.ID, map[string]any{"status": panel.Status, "error": panel.LastError})
+	if err != nil {
+		return c.Status(fiber.StatusBadGateway).Type("html").SendString(renderAdminUsersPageMessage(err.Error(), r.cfg.AppName))
+	}
+	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
+}
+
 func (r *Runner) postAdminPanelSync(c *fiber.Ctx) error {
 	admin, ok := currentAdmin(c)
 	if !ok {
@@ -367,7 +393,8 @@ func renderPanelDetailPage(panel *models.Panel, appName string, adminRole string
 }
 
 func renderPanelDetailPageV2(panel *models.Panel, appName string, adminRole string) string {
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(panel.Name) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(panel.BaseURL) + `</p></div><div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Edit</a><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/test"><button class="btn btn-outline-primary btn-sm" type="submit">Test</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync"><button class="btn btn-outline-success btn-sm" type="submit">Sync</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/clear-session"><button class="btn btn-outline-warning btn-sm" type="submit">Clear session</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/delete" onsubmit="return confirm('Delete this panel?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div></div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel information</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">` + panelStatusBadge(panel.Status) + `</dd><dt class="col-sm-4">Username</dt><dd class="col-sm-8">` + html.EscapeString(panel.Username) + `</dd><dt class="col-sm-4">Version</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(panel.Version, "-")) + `</dd><dt class="col-sm-4">Last sync</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</dd><dt class="col-sm-4">Last error</dt><dd class="col-sm-8 text-danger">` + html.EscapeString(defaultString(panel.LastError, "-")) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel details</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Base URL</dt><dd class="col-sm-8">` + html.EscapeString(panel.BaseURL) + `</dd><dt class="col-sm-4">Created</dt><dd class="col-sm-8">` + html.EscapeString(panel.CreatedAt.UTC().Format(time.RFC3339)) + `</dd><dt class="col-sm-4">Updated</dt><dd class="col-sm-8">` + html.EscapeString(panel.UpdatedAt.UTC().Format(time.RFC3339)) + `</dd></dl></div></div></div></div></div>`
+	buttonBar := `<div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Edit</a><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/test"><button class="btn btn-outline-primary btn-sm" type="submit">Test</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/health"><button class="btn btn-outline-info btn-sm" type="submit">Health check</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync"><button class="btn btn-outline-success btn-sm" type="submit">Sync</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/clear-session"><button class="btn btn-outline-warning btn-sm" type="submit">Clear session</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/delete" onsubmit="return confirm('Delete this panel?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div>`
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(panel.Name) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(panel.BaseURL) + `</p></div>` + buttonBar + `</div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel information</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">` + panelStatusBadge(panel.Status) + `</dd><dt class="col-sm-4">Username</dt><dd class="col-sm-8">` + html.EscapeString(panel.Username) + `</dd><dt class="col-sm-4">Version</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(panel.Version, "-")) + `</dd><dt class="col-sm-4">Last sync</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</dd><dt class="col-sm-4">Last error</dt><dd class="col-sm-8 text-danger">` + html.EscapeString(defaultString(panel.LastError, "-")) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel details</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Base URL</dt><dd class="col-sm-8">` + html.EscapeString(panel.BaseURL) + `</dd><dt class="col-sm-4">Created</dt><dd class="col-sm-8">` + html.EscapeString(panel.CreatedAt.UTC().Format(time.RFC3339)) + `</dd><dt class="col-sm-4">Updated</dt><dd class="col-sm-8">` + html.EscapeString(panel.UpdatedAt.UTC().Format(time.RFC3339)) + `</dd></dl></div></div></div></div></div>`
 	return renderAdminShell(appName, adminRole, "panels", body)
 }
 

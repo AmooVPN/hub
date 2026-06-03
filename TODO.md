@@ -2680,7 +2680,7 @@ subscription_cache_refresh
 
 Tasks:
 
-* [ ] Add job service.
+* [x] Add job service.
 * [x] Add sync job repository.
 * [x] Add Redis lock.
 * [x] Prevent concurrent sync for same panel.
@@ -2709,10 +2709,10 @@ cancelled
 
 Tasks:
 
-* [ ] Add constants.
-* [ ] Add UI badges.
-* [ ] Add dashboard widget.
-* [ ] Add cleanup strategy.
+* [x] Add constants.
+* [x] Add UI badges.
+* [x] Add dashboard widget.
+* [x] Add cleanup strategy.
 
 ---
 
@@ -2732,7 +2732,7 @@ Tasks:
 * [x] Filter by status.
 * [x] Filter by panel.
 * [x] Show job detail.
-* [ ] Retry failed job when safe.
+* [x] Retry failed job when safe.
 
 ---
 
@@ -2754,12 +2754,12 @@ Scheduled health checks
 
 Tasks:
 
-* [ ] Add health check service.
-* [ ] Ping panel.
-* [ ] Test login/session.
-* [ ] Update panel status.
-* [ ] Store last error.
-* [ ] Show in dashboard.
+* [x] Add health check service.
+* [x] Ping panel.
+* [x] Test login/session.
+* [x] Update panel status.
+* [x] Store last error.
+* [x] Show in dashboard.
 
 ---
 
@@ -2776,13 +2776,13 @@ POST /admin/subscriptions/:client_id/invalidate-cache
 
 Tasks:
 
-* [ ] List clients with subscription status.
-* [ ] Show subscription URL.
-* [ ] Show active config count.
-* [ ] Show last cache time.
-* [ ] Regenerate token.
-* [ ] Invalidate cache.
-* [ ] Copy buttons.
+* [x] List clients with subscription status.
+* [x] Show subscription URL.
+* [x] Show active config count.
+* [x] Show last cache time.
+* [x] Regenerate token.
+* [x] Invalidate cache.
+* [x] Copy buttons.
 
 ---
 
@@ -2843,21 +2843,21 @@ Do not implement until client API is stable.
 
 Part 3 is complete when:
 
-* hub can connect to a 3x-ui panel.
-* hub can persist and reuse panel sessions.
-* hub can detect expired sessions.
-* hub can sync inbounds.
-* hub can display all inbounds.
-* Admin can create central clients.
-* Admin can attach clients to remote inbounds.
-* hub can create remote clients through 3x-ui API.
-* hub stores remote mappings.
-* hub can generate raw subscription output.
-* hub can generate base64 subscription output.
-* Client subscription link works.
-* Traffic usage can be synced manually.
-* Sync jobs are stored and visible.
-* Partial failures are handled clearly.
+* [x] hub can connect to a 3x-ui panel.
+* [x] hub can persist and reuse panel sessions.
+* [x] hub can detect expired sessions.
+* [x] hub can sync inbounds.
+* [x] hub can display all inbounds.
+* [x] Admin can create central clients.
+* [x] Admin can attach clients to remote inbounds.
+* [x] hub can create remote clients through 3x-ui API.
+* [x] hub stores remote mappings.
+* [x] hub can generate raw subscription output.
+* [x] hub can generate base64 subscription output.
+* [x] Client subscription link works.
+* [x] Traffic usage can be synced manually.
+* [x] Sync jobs are stored and visible.
+* [x] Partial failures are handled clearly.
 
 # TODO.md — hub
 
@@ -2912,14 +2912,14 @@ readonly: no access
 
 Tasks:
 
-* [ ] Add backup page.
-* [ ] Add export action.
-* [ ] Add import form.
-* [ ] Add backup list.
-* [ ] Add backup download.
-* [ ] Add backup delete.
-* [ ] Add permission checks.
-* [ ] Add audit logs.
+* [x] Add backup page.
+* [x] Add export action.
+* [x] Add import form.
+* [x] Add backup list.
+* [x] Add backup download.
+* [x] Add backup delete.
+* [x] Add permission checks.
+* [x] Add audit logs.
 
 ---
 
@@ -2962,11 +2962,11 @@ hub-backup-2026-06-03-19-30-00.zip
 
 Tasks:
 
-* [ ] Generate metadata on export.
-* [ ] Validate metadata on import.
-* [ ] Reject backups where `app != "hub"`.
-* [ ] Reject unsupported schema versions.
-* [ ] Reject malformed metadata.
+* [x] Generate metadata on export.
+* [x] Validate metadata on import.
+* [x] Reject backups where `app != "hub"`.
+* [x] Reject unsupported schema versions.
+* [x] Reject malformed metadata.
 
 ---
 
@@ -3038,12 +3038,12 @@ Import flow:
 
 Tasks:
 
-* [ ] Add import service.
-* [ ] Add zip validation.
-* [ ] Add path traversal protection.
-* [ ] Add SQLite validation.
-* [ ] Add schema validation.
-* [ ] Add automatic pre-import backup.
+* [x] Add import service.
+* [x] Add zip validation.
+* [x] Add path traversal protection.
+* [x] Add SQLite validation.
+* [x] Add schema validation.
+* [x] Add automatic pre-import backup.
 * [ ] Add restore rollback on failure.
 * [ ] Add audit log.
 * [x] Add tests.
@@ -3941,10 +3941,10 @@ Required tests:
 
 Required tests:
 
-* [ ] Job creation.
-* [ ] Job status update.
-* [ ] Job failure state.
-* [ ] Retry count.
+* [x] Job creation.
+* [x] Job status update.
+* [x] Job failure state.
+* [x] Retry count.
 * [x] Redis lock acquire.
 * [x] Redis lock release.
 * [x] Lock cannot be released by non-owner.

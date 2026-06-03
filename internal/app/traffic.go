@@ -221,11 +221,7 @@ func (r *Runner) loadTrafficSyncAttachments(ctx context.Context, panelID, client
 }
 
 func (r *Runner) startSyncJob(ctx context.Context, panelID *int64, jobType string) (int64, error) {
-	job := &models.SyncJob{PanelID: panelID, JobType: jobType, Status: "running", CreatedAt: time.Now().UTC()}
-	if err := r.syncJobs.Create(ctx, job); err != nil {
-		return 0, err
-	}
-	return job.ID, nil
+	return r.jobs.Start(ctx, panelID, jobType, syncJobRetryCountFromContext(ctx))
 }
 
 func (r *Runner) recordTrafficSnapshot(ctx context.Context, clientID, attachmentID, uploadBytes, downloadBytes int64) error {
