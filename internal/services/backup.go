@@ -45,6 +45,8 @@ type ImportResult struct {
 	StagedPath   string
 }
 
+var writeStagedImportFile = os.WriteFile
+
 func NewBackupService() *BackupService { return &BackupService{} }
 
 func (s *BackupService) Create(ctx context.Context, dbPath, backupDir, appName string) (BackupRecord, error) {
@@ -212,10 +214,65 @@ func (s *BackupService) PrepareImport(ctx context.Context, data []byte, dbPath, 
 	}
 	name := fmt.Sprintf("hub-import-%s.zip", time.Now().UTC().Format("2006-01-02-15-04-05"))
 	path := filepath.Join(backupDir, name)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if err := writeStagedImportFile(path, data, 0o600); err != nil {
+		_ = s.Delete(backupDir, safety.Name)
 		return ImportResult{}, err
 	}
 	return ImportResult{Metadata: meta, SafetyBackup: safety, StagedName: name, StagedPath: path}, nil
+}
+
+func (s *BackupService) CleanupOldBackups(backupDir string, keepCount, keepDays int, protectedNames ...string) ([]string, error) {
+	items, err := s.List(backupDir)
+	if err != nil {
+		return nil, err
+	}
+	if keepCount <= 0 && keepDays <= 0 {
+		return nil, nil
+	}
+	protected := make(map[string]struct{}, len(protectedNames))
+	for _, name := range protectedNames {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		protected[name] = struct{}{}
+	}
+	kept := make(map[string]struct{}, len(items))
+	if keepDays > 0 {
+		cutoff := time.Now().UTC().Add(-time.Duration(keepDays) * 24 * time.Hour)
+		for _, item := range items {
+			if item.ModifiedAt.After(cutoff) || item.ModifiedAt.Equal(cutoff) {
+				kept[item.Name] = struct{}{}
+			}
+		}
+	}
+	if keepCount > 0 {
+		count := 0
+		for _, item := range items {
+			if _, ok := protected[item.Name]; ok {
+				kept[item.Name] = struct{}{}
+				continue
+			}
+			kept[item.Name] = struct{}{}
+			count++
+			if count >= keepCount {
+				break
+			}
+		}
+	}
+	deleted := make([]string, 0)
+	for _, item := range items {
+		if _, ok := protected[item.Name]; ok {
+			continue
+		}
+		if _, ok := kept[item.Name]; ok {
+			continue
+		}
+		if err := s.Delete(backupDir, item.Name); err != nil && !os.IsNotExist(err) {
+			return deleted, err
+		}
+		deleted = append(deleted, item.Name)
+	}
+	return deleted, nil
 }
 
 func checkpointSQLite(ctx context.Context, dbPath string) error {

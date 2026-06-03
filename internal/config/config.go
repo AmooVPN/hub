@@ -23,6 +23,8 @@ type Config struct {
 	JWTRefreshTTLDays    int
 	HUBSecretKey         string
 	BackupDir            string
+	BackupRetentionCount int
+	BackupRetentionDays  int
 	MaxUploadSizeMB      int
 	InitialAdminUsername string
 	InitialAdminPassword string
@@ -42,6 +44,8 @@ func Load() (*Config, error) {
 		SessionCookieName:    getEnv("SESSION_COOKIE_NAME", "hub_session"),
 		HUBSecretKey:         os.Getenv("HUB_SECRET_KEY"),
 		BackupDir:            getEnv("BACKUP_DIR", "./backups"),
+		BackupRetentionCount: 20,
+		BackupRetentionDays:  30,
 		InitialAdminUsername: getEnv("INITIAL_ADMIN_USERNAME", "admin"),
 		InitialAdminPassword: getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
 		InitialAdminEmail:    os.Getenv("INITIAL_ADMIN_EMAIL"),
@@ -62,6 +66,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if c.MaxUploadSizeMB, err = parseIntEnv("MAX_UPLOAD_SIZE_MB", 100); err != nil {
+		return nil, err
+	}
+	if c.BackupRetentionCount, err = parseIntEnv("BACKUP_RETENTION_COUNT", 20); err != nil {
+		return nil, err
+	}
+	if c.BackupRetentionDays, err = parseIntEnv("BACKUP_RETENTION_DAYS", 30); err != nil {
 		return nil, err
 	}
 

@@ -3001,7 +3001,7 @@ Tasks:
 * [ ] Save zip into backup directory.
 * [ ] Return download response.
 * [ ] Resume jobs.
-* [ ] Add audit log.
+* [x] Add audit log.
 
 Acceptance criteria:
 
@@ -3044,8 +3044,8 @@ Tasks:
 * [x] Add SQLite validation.
 * [x] Add schema validation.
 * [x] Add automatic pre-import backup.
-* [ ] Add restore rollback on failure.
-* [ ] Add audit log.
+* [x] Add restore rollback on failure.
+* [x] Add audit log.
 * [x] Add tests.
 
 Acceptance criteria:
@@ -3069,11 +3069,11 @@ BACKUP_RETENTION_DAYS=30
 
 Tasks:
 
-* [ ] Add backup retention config.
-* [ ] Add cleanup old backups job.
-* [ ] Never delete pre-import backup automatically in MVP.
-* [ ] Show backup size.
-* [ ] Show backup creation time.
+* [x] Add backup retention config.
+* [x] Add cleanup old backups job.
+* [x] Never delete pre-import backup automatically in MVP.
+* [x] Show backup size.
+* [x] Show backup creation time.
 
 ---
 

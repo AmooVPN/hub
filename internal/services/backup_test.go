@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 )
@@ -94,6 +95,96 @@ func TestBackupServicePrepareImportCreatesSafetyBackup(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(backupDir, result.SafetyBackup.Name)); err != nil {
 		t.Fatalf("safety backup missing: %v", err)
+	}
+}
+
+func TestBackupServicePrepareImportRollsBackSafetyBackupOnStageFailure(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "hub.db")
+	backupDir := filepath.Join(dir, "backups")
+	if err := os.WriteFile(dbPath, []byte("sqlite-bytes"), 0o600); err != nil {
+		t.Fatalf("write db: %v", err)
+	}
+	service := NewBackupService()
+	data := buildBackupArchive(t, BackupMetadata{App: "hub", Version: backupFormatVersion, Database: "sqlite", SchemaVersion: backupSchemaVersion, CreatedAt: time.Now().UTC()}, []byte("SQLite format 3\x00rest-of-db"))
+	originalWrite := writeStagedImportFile
+	writeStagedImportFile = func(string, []byte, os.FileMode) error { return os.ErrPermission }
+	t.Cleanup(func() { writeStagedImportFile = originalWrite })
+	if _, err := service.PrepareImport(context.Background(), data, dbPath, backupDir, "hub"); err == nil {
+		t.Fatal("expected stage failure")
+	}
+	backs, err := service.List(backupDir)
+	if err != nil {
+		t.Fatalf("list backups: %v", err)
+	}
+	if len(backs) != 0 {
+		t.Fatalf("expected rolled back safety backup, got %+v", backs)
+	}
+}
+
+func TestBackupServiceCleanupOldBackupsByCount(t *testing.T) {
+	dir := t.TempDir()
+	service := NewBackupService()
+	names := []string{
+		"hub-backup-2026-06-01-00-00-00.zip",
+		"hub-backup-2026-06-02-00-00-00.zip",
+		"hub-backup-2026-06-03-00-00-00.zip",
+		"hub-backup-2026-06-04-00-00-00.zip",
+	}
+	for i, name := range names {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(name), 0o600); err != nil {
+			t.Fatalf("write backup %s: %v", name, err)
+		}
+		modTime := time.Date(2026, 6, 1+i, 0, 0, 0, 0, time.UTC)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("chtimes %s: %v", name, err)
+		}
+	}
+	deleted, err := service.CleanupOldBackups(dir, 2, 0)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	sort.Strings(deleted)
+	if len(deleted) != 2 {
+		t.Fatalf("expected 2 deleted files, got %v", deleted)
+	}
+	backs, err := service.List(dir)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(backs) != 2 || backs[0].Name != names[3] || backs[1].Name != names[2] {
+		t.Fatalf("unexpected remaining backups: %+v", backs)
+	}
+}
+
+func TestBackupServiceCleanupOldBackupsKeepsProtectedNames(t *testing.T) {
+	dir := t.TempDir()
+	service := NewBackupService()
+	protected := "hub-backup-2026-06-01-00-00-00.zip"
+	for i, name := range []string{protected, "hub-backup-2026-06-02-00-00-00.zip"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(name), 0o600); err != nil {
+			t.Fatalf("write backup %s: %v", name, err)
+		}
+		modTime := time.Date(2026, 6, 1+i, 0, 0, 0, 0, time.UTC)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("chtimes %s: %v", name, err)
+		}
+	}
+	deleted, err := service.CleanupOldBackups(dir, 1, 0, protected)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("expected no deletions when protected, got %v", deleted)
+	}
+	backs, err := service.List(dir)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(backs) != 2 {
+		t.Fatalf("expected both backups to remain, got %+v", backs)
 	}
 }
 
