@@ -644,15 +644,15 @@ Requirements:
 
 Phase 1 completion criteria:
 
-* SQLite starts correctly.
-* Redis connects.
-* Migrations run.
-* Config loads.
-* Encryption works.
-* Password hashing works.
-* Project structure exists.
-* Repositories implemented.
-* Models implemented.
+* [x] SQLite starts correctly.
+* [x] Redis connects.
+* [x] Migrations run.
+* [x] Config loads.
+* [x] Encryption works.
+* [x] Password hashing works.
+* [x] Project structure exists.
+* [x] Repositories implemented.
+* [x] Models implemented.
 
 
 
@@ -696,16 +696,16 @@ GET  /admin
 
 Tasks:
 
-* [ ] Create admin login page.
-* [ ] Create admin logout action.
-* [ ] Create secure session storage.
-* [ ] Add session middleware.
-* [ ] Protect all `/admin/*` routes.
-* [ ] Redirect unauthenticated admins to `/admin/login`.
-* [ ] Add login rate limiting.
-* [ ] Add audit log for successful login.
-* [ ] Add audit log for failed login.
-* [ ] Add audit log for logout.
+* [x] Create admin login page.
+* [x] Create admin logout action.
+* [x] Create secure session storage.
+* [x] Add session middleware.
+* [x] Protect all `/admin/*` routes.
+* [x] Redirect unauthenticated admins to `/admin/login`.
+* [x] Add login rate limiting.
+* [x] Add audit log for successful login.
+* [x] Add audit log for failed login.
+* [x] Add audit log for logout.
 * [ ] Add remember-me option if needed later.
 
 Session requirements:
@@ -759,9 +759,9 @@ Add setup page later.
 
 Tasks:
 
-* [ ] Check if `admin_users` table is empty.
-* [ ] If empty, create initial admin from env.
-* [ ] Refuse production startup if initial password is weak/default.
+* [x] Check if `admin_users` table is empty.
+* [x] If empty, create initial admin from env.
+* [x] Refuse production startup if initial password is weak/default.
 * [ ] Force password change flag can be added later.
 
 ---
@@ -853,14 +853,14 @@ Cannot change anything.
 
 Tasks:
 
-* [ ] Create role constants.
-* [ ] Create permission constants.
-* [ ] Add permission middleware.
-* [ ] Add helper `RequirePermission`.
-* [ ] Add helper `RequireRole`.
-* [ ] Hide UI actions if admin lacks permission.
-* [ ] Return 403 for forbidden actions.
-* [ ] Add tests for permissions.
+* [x] Create role constants.
+* [x] Create permission constants.
+* [x] Add permission middleware.
+* [x] Add helper `RequirePermission`.
+* [x] Add helper `RequireRole`.
+* [x] Hide UI actions if admin lacks permission.
+* [x] Return 403 for forbidden actions.
+* [x] Add tests for permissions.
 
 Acceptance criteria:
 
@@ -888,7 +888,7 @@ POST /admin/users/:id/reset-password
 
 Tasks:
 
-* [ ] List admin users.
+* [x] List admin users.
 * [ ] Create admin user.
 * [ ] Edit admin user.
 * [ ] Change role.

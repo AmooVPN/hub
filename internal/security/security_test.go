@@ -28,3 +28,15 @@ func TestPasswordHashCompare(t *testing.T) {
 		t.Fatal("expected mismatch error")
 	}
 }
+
+func TestRBACPermissions(t *testing.T) {
+	if !HasPermission(RoleOwner, PermissionManageAdmins) {
+		t.Fatal("owner should manage admins")
+	}
+	if HasPermission(RoleReadonly, PermissionManageAdmins) {
+		t.Fatal("readonly should not manage admins")
+	}
+	if !HasRole(RoleAdmin, RoleAdmin, RoleOwner) {
+		t.Fatal("admin role should match allowed roles")
+	}
+}

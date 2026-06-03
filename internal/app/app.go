@@ -119,7 +119,8 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/login", r.postAdminLogin)
 	app.Post("/admin/logout", r.postAdminLogout)
 	app.Use("/admin", r.requireAdminSession)
-	app.Get("/admin", r.getAdminDashboard)
+	app.Get("/admin", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboard)
+	app.Get("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUsers)
 
 	return app
 }
@@ -212,21 +213,34 @@ func (r *Runner) postAdminLogout(c *fiber.Ctx) error {
 }
 
 func (r *Runner) requireAdminSession(c *fiber.Ctx) error {
-	if _, ok := r.loadAdminFromRequest(c); !ok {
+	admin, ok := r.loadAdminFromRequest(c)
+	if !ok {
 		return c.Redirect("/admin/login", fiber.StatusFound)
 	}
+	c.Locals("admin", admin)
 	return c.Next()
 }
 
 func (r *Runner) getAdminDashboard(c *fiber.Ctx) error {
-	admin, ok := r.loadAdminFromRequest(c)
+	admin, ok := currentAdmin(c)
 	if !ok {
 		return c.Redirect("/admin/login", fiber.StatusFound)
 	}
 	return c.Type("html").SendString(renderDashboardPage(admin, r.cfg.AppName))
 }
 
+func (r *Runner) getAdminUsers(c *fiber.Ctx) error {
+	admins, err := r.admins.List(c.UserContext())
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderAdminUsersPage(admins, r.cfg.AppName))
+}
+
 func (r *Runner) loadAdminFromRequest(c *fiber.Ctx) (*models.AdminUser, bool) {
+	if admin, ok := currentAdmin(c); ok {
+		return admin, true
+	}
 	token := c.Cookies(r.cfg.SessionCookieName)
 	if token == "" {
 		return nil, false
@@ -239,6 +253,14 @@ func (r *Runner) loadAdminFromRequest(c *fiber.Ctx) (*models.AdminUser, bool) {
 	}
 	admin, err := r.admins.FindByID(c.UserContext(), adminID)
 	if err != nil || admin == nil || !admin.Active {
+		return nil, false
+	}
+	return admin, true
+}
+
+func currentAdmin(c *fiber.Ctx) (*models.AdminUser, bool) {
+	admin, ok := c.Locals("admin").(*models.AdminUser)
+	if !ok || admin == nil {
 		return nil, false
 	}
 	return admin, true
@@ -318,5 +340,24 @@ func renderLoginPage(message, appName string) string {
 }
 
 func renderDashboardPage(admin *models.AdminUser, appName string) string {
-	return renderPage("Admin Dashboard", `<main class="container py-5"><div class="d-flex flex-column gap-3"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + `</p></div><div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center"><div><div class="fw-semibold">Admin dashboard</div><div class="text-body-secondary small">Initial milestone running</div></div><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div></div></div></main>`)
+	usersLink := ""
+	if security.HasPermission(admin.Role, security.PermissionManageAdmins) {
+		usersLink = `<a class="btn btn-outline-primary btn-sm" href="/admin/users">Manage admins</a>`
+	}
+	return renderPage("Admin Dashboard", `<main class="container py-5"><div class="d-flex flex-column gap-3"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2"><div><div class="fw-semibold">Admin dashboard</div><div class="text-body-secondary small">Initial milestone running</div></div><div class="d-flex gap-2">` + usersLink + `<form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div></div></div></div></main>`)
+}
+
+func renderAdminUsersPage(admins []models.AdminUser, appName string) string {
+	var rows strings.Builder
+	for _, admin := range admins {
+		status := "active"
+		if !admin.Active {
+			status = "disabled"
+		}
+		rows.WriteString(`<tr><td>` + html.EscapeString(admin.Username) + `</td><td>` + html.EscapeString(admin.Role) + `</td><td>` + html.EscapeString(status) + `</td></tr>`)
+	}
+	if rows.Len() == 0 {
+		rows.WriteString(`<tr><td colspan="3" class="text-body-secondary">No admin users found.</td></tr>`)
+	}
+	return renderPage("Admin Users", `<main class="container py-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Admin users</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div><div class="card"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Username</th><th>Role</th><th>Status</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div></main>`)
 }
