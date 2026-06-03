@@ -1,16 +1,16 @@
 package app
 
 import (
-	"io"
 	"html"
+	"io"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/services"
 	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPM/hub/internal/services"
 )
 
 func (r *Runner) getAdminBackups(c *fiber.Ctx) error {
@@ -147,7 +147,7 @@ func renderAdminBackupsPageWithAlert(items []services.BackupRecord, adminRole, a
 	for _, item := range items {
 		actions := `<a class="btn btn-outline-secondary btn-sm" href="/admin/backups/download/` + html.EscapeString(item.Name) + `">Download</a>`
 		if security.HasRole(adminRole, security.RoleOwner) {
-			actions += ` <form method="post" action="/admin/backups/delete/` + html.EscapeString(item.Name) + `" class="d-inline" onsubmit="return confirm('Delete this backup?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form>`
+			actions += ` <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#backupDeleteModal" data-delete-url="/admin/backups/delete/` + html.EscapeString(item.Name) + `" data-backup-name="` + html.EscapeString(item.Name) + `">Delete</button>`
 		}
 		rows.WriteString(`<tr><td>` + html.EscapeString(item.Name) + `</td><td>` + html.EscapeString(formatBytes(item.Size)) + `</td><td>` + html.EscapeString(item.ModifiedAt.Format(time.RFC3339)) + `</td><td class="text-nowrap">` + actions + `</td></tr>`)
 	}
@@ -161,11 +161,12 @@ func renderAdminBackupsPageWithAlert(items []services.BackupRecord, adminRole, a
 		}
 		alert = `<div class="alert alert-` + html.EscapeString(alertClass) + `">` + html.EscapeString(message) + `</div>`
 	}
-	importForm := `<div class="card shadow-sm"><div class="card-body"><h2 class="h5">Import</h2><p class="text-body-secondary">Importing a backup will replace the current database. A safety backup will be created automatically before import.</p><form method="post" action="/admin/backups/import" enctype="multipart/form-data" class="vstack gap-3"><div><label class="form-label" for="backup">Backup archive</label><input class="form-control" id="backup" name="backup" type="file" accept=".zip" required></div><div class="d-flex gap-2"><button class="btn btn-warning" type="submit">Validate import</button></div></form></div></div>`
+	importForm := `<div class="card shadow-sm"><div class="card-body"><h2 class="h5">Import</h2><p class="text-body-secondary">Importing a backup will replace the current database. A safety backup will be created automatically before import.</p><button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#backupImportModal">Validate import</button></div></div>`
 	if !security.HasRole(adminRole, security.RoleOwner) {
 		importForm = `<div class="card shadow-sm"><div class="card-body"><h2 class="h5">Import</h2><p class="text-body-secondary mb-0">Import is restricted to owners.</p></div></div>`
 	}
 	exportButton := `<a class="btn btn-primary btn-sm" href="/admin/backups/export">Create backup</a>`
-	body := `<div class="container py-4 py-lg-5">` + alert + `<div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Backups</h1><p class="text-body-secondary mb-0">Backup directory: ` + html.EscapeString(backupDir) + `</p></div><div class="d-flex gap-2">` + exportButton + `<a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div></div><div class="row g-3 mb-3"><div class="col-12">` + importForm + `</div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Filename</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
+	modals := `<div class="modal fade" id="backupImportModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="post" action="/admin/backups/import" enctype="multipart/form-data"><div class="modal-header"><h2 class="modal-title fs-5">Import backup</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="text-body-secondary">Importing a backup will replace the current database. A safety backup will be created automatically before import.</p><div><label class="form-label" for="backup">Backup archive</label><input class="form-control" id="backup" name="backup" type="file" accept=".zip" required></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning" type="submit">Import backup</button></div></form></div></div></div><div class="modal fade" id="backupDeleteModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="post" action=""><div class="modal-header"><h2 class="modal-title fs-5">Delete backup</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="mb-0">Delete <span class="backup-delete-name fw-semibold"></span>? This cannot be undone.</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-danger" type="submit">Delete backup</button></div></form></div></div></div><script>document.getElementById('backupDeleteModal')?.addEventListener('show.bs.modal',function(event){var button=event.relatedTarget;var action=button?.getAttribute('data-delete-url');var name=button?.getAttribute('data-backup-name');var form=this.querySelector('form');if(form&&action){form.setAttribute('action',action);}var label=this.querySelector('.backup-delete-name');if(label&&name){label.textContent=name;}});</script>`
+	body := `<div class="container py-4 py-lg-5">` + alert + `<div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Backups</h1><p class="text-body-secondary mb-0">Backup directory: ` + html.EscapeString(backupDir) + `</p></div><div class="d-flex gap-2">` + exportButton + `<a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div></div><div class="row g-3 mb-3"><div class="col-12">` + importForm + `</div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Filename</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>` + modals
 	return renderAdminShell(appName, adminRole, "backups", body)
 }

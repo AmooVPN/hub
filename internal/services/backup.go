@@ -1,8 +1,8 @@
 package services
 
 import (
-	"bytes"
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,7 +18,7 @@ import (
 
 const (
 	backupFormatVersion = "0.1.0"
-	backupSchemaVersion  = 1
+	backupSchemaVersion = 1
 )
 
 type BackupMetadata struct {
@@ -30,9 +30,9 @@ type BackupMetadata struct {
 }
 
 type BackupRecord struct {
-	Name       string
-	Size       int64
-	ModifiedAt time.Time
+	Name        string
+	Size        int64
+	ModifiedAt  time.Time
 	DownloadURL string
 }
 

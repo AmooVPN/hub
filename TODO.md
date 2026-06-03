@@ -3091,10 +3091,10 @@ monthly
 
 Tasks:
 
-* [ ] Add automatic backup setting.
-* [ ] Add scheduled backup job.
-* [ ] Add retention policy.
-* [ ] Add notification on failure.
+* [x] Add automatic backup setting.
+* [x] Add scheduled backup job.
+* [x] Add retention policy.
+* [x] Add notification on failure.
 
 Not required for MVP.
 
@@ -3124,9 +3124,9 @@ A safety backup will be created automatically before import.
 
 Tasks:
 
-* [ ] Add confirmation modal for import.
-* [ ] Add confirmation modal for delete.
-* [ ] Add success/error alerts.
+* [x] Add confirmation modal for import.
+* [x] Add confirmation modal for delete.
+* [x] Add success/error alerts.
 * [ ] Add HTMX upload progress if possible.
 
 ---
@@ -3172,11 +3172,11 @@ Behavior:
 
 Tasks:
 
-* [ ] Add health handlers.
-* [ ] Add SQLite ping.
-* [ ] Add Redis ping.
-* [ ] Add migration status check.
-* [ ] Return JSON.
+* [x] Add health handlers.
+* [x] Add SQLite ping.
+* [x] Add Redis ping.
+* [x] Add migration status check.
+* [x] Return JSON.
 
 Example response:
 

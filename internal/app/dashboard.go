@@ -25,6 +25,9 @@ type dashboardSummary struct {
 	ExpiredClients  int64
 	TotalTraffic    int64
 	RunningSyncJobs int64
+	BackupCount     int64
+	LastBackupAt    *time.Time
+	SystemHealth    systemHealthSnapshot
 	RecentSyncJobs  []dashboardSyncJob
 	RecentAudits    []models.AuditLog
 	RecentErrors    []dashboardError
@@ -101,6 +104,18 @@ func (r *Runner) loadDashboardSummary(ctx context.Context) (dashboardSummary, er
 		}
 		summary.RecentAudits = audits
 	}
+	summary.SystemHealth = r.collectSystemHealth(ctx)
+	if r.backups != nil {
+		items, err := r.backups.List(r.cfg.BackupDir)
+		if err != nil {
+			return summary, err
+		}
+		summary.BackupCount = int64(len(items))
+		if len(items) > 0 {
+			latest := items[0].ModifiedAt
+			summary.LastBackupAt = &latest
+		}
+	}
 	if err := r.loadRecentErrors(ctx, &summary); err != nil {
 		return summary, err
 	}
@@ -151,7 +166,7 @@ func renderDashboardPage(admin *models.AdminUser, appName string, summary dashbo
 	if security.HasPermission(admin.Role, security.PermissionManagePanels) {
 		trafficLink = `<form method="post" action="/admin/sync/traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form>`
 	}
-	body := `<script src="https://unpkg.com/htmx.org@1.9.12"></script><div class="d-flex flex-column gap-4"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3"><div><h1 class="h3 mb-1">Dashboard</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="d-flex gap-2 flex-wrap">` + usersLink + trafficLink + `<a class="btn btn-outline-secondary btn-sm" href="/admin/settings">Settings</a><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div><div id="dashboard-widgets" hx-get="/admin/dashboard/widgets" hx-trigger="load, every 30s" hx-swap="outerHTML">` + renderDashboardWidgets(summary) + `</div><div class="row g-3"><div class="col-12 col-xl-6">` + renderDashboardSyncJobs(summary.RecentSyncJobs) + `</div><div class="col-12 col-xl-6">` + renderDashboardAudits(summary.RecentAudits) + `</div><div class="col-12"><div class="card"><div class="card-header fw-semibold">Recent errors</div><div class="card-body">` + renderDashboardErrors(summary.RecentErrors) + `</div></div></div></div></div>`
+	body := `<script src="https://unpkg.com/htmx.org@1.9.12"></script><div class="d-flex flex-column gap-4"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3"><div><h1 class="h3 mb-1">Dashboard</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="d-flex gap-2 flex-wrap">` + usersLink + trafficLink + `<a class="btn btn-outline-secondary btn-sm" href="/admin/settings">Settings</a><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div><div id="dashboard-widgets" hx-get="/admin/dashboard/widgets" hx-trigger="load, every 30s" hx-swap="outerHTML">` + renderDashboardWidgets(summary) + `</div><div>` + renderDashboardMonitoring(summary) + `</div><div class="row g-3"><div class="col-12 col-xl-6">` + renderDashboardSyncJobs(summary.RecentSyncJobs) + `</div><div class="col-12 col-xl-6">` + renderDashboardAudits(summary.RecentAudits) + `</div><div class="col-12"><div class="card"><div class="card-header fw-semibold">Recent errors</div><div class="card-body">` + renderDashboardErrors(summary.RecentErrors) + `</div></div></div></div></div>`
 	return renderAdminShell(appName, admin.Role, "dashboard", body)
 }
 
@@ -165,6 +180,25 @@ func dashboardStatCard(title string, value int64, tone string) string {
 
 func dashboardTrafficCard(value int64) string {
 	return `<div class="col-12 col-md-6 col-xl-3"><div class="card h-100 shadow-sm"><div class="card-body"><div class="text-body-secondary small">Total traffic</div><div class="display-6 fw-semibold">` + html.EscapeString(formatBytes(value)) + `</div></div></div></div>`
+}
+
+func renderDashboardMonitoring(summary dashboardSummary) string {
+	backupTime := "No backups"
+	if summary.LastBackupAt != nil {
+		backupTime = summary.LastBackupAt.UTC().Format(time.RFC3339)
+	}
+	return `<div class="row g-3"><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">SQLite</div><div class="fw-semibold text-` + monitorTone(summary.SystemHealth.SQLite) + `">` + html.EscapeString(summary.SystemHealth.SQLite) + `</div><div class="text-body-secondary small mt-2">Migrations: ` + html.EscapeString(summary.SystemHealth.Migrations) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Redis</div><div class="fw-semibold text-` + monitorTone(summary.SystemHealth.Redis) + `">` + html.EscapeString(summary.SystemHealth.Redis) + `</div><div class="text-body-secondary small mt-2">App health: ` + html.EscapeString(summary.SystemHealth.Status) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Backups</div><div class="fs-5 fw-semibold">` + html.EscapeString(fmt.Sprintf("%d", summary.BackupCount)) + `</div><div class="text-body-secondary small mt-2">Latest: ` + html.EscapeString(backupTime) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Version</div><div class="fs-5 fw-semibold">0.1.0</div><div class="text-body-secondary small mt-2">` + html.EscapeString(summary.SystemHealth.Time.Format(time.RFC3339)) + `</div></div></div></div></div>`
+}
+
+func monitorTone(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "ok", "online":
+		return "success"
+	case "degraded", "warning":
+		return "warning"
+	default:
+		return "danger"
+	}
 }
 
 func renderDashboardSyncJobs(items []dashboardSyncJob) string {

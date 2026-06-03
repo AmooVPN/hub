@@ -9,47 +9,50 @@ import (
 )
 
 type Config struct {
-	AppName              string
-	AppEnv               string
-	AppAddr              string
-	AppBaseURL           string
-	DatabasePath         string
-	RedisAddr            string
-	RedisPassword        string
-	RedisDB              int
-	SessionCookieName    string
-	SessionTTLHrs        int
-	JWTAccessTTLMinutes  int
-	JWTRefreshTTLDays    int
-	HUBSecretKey         string
-	BackupDir            string
-	BackupRetentionCount int
-	BackupRetentionDays  int
-	MaxUploadSizeMB      int
-	InitialAdminUsername string
-	InitialAdminPassword string
-	InitialAdminEmail    string
-	InitialAdminRole     string
+	AppName                 string
+	AppEnv                  string
+	AppAddr                 string
+	AppBaseURL              string
+	DatabasePath            string
+	RedisAddr               string
+	RedisPassword           string
+	RedisDB                 int
+	SessionCookieName       string
+	SessionTTLHrs           int
+	JWTAccessTTLMinutes     int
+	JWTRefreshTTLDays       int
+	HUBSecretKey            string
+	BackupDir               string
+	BackupRetentionCount    int
+	BackupRetentionDays     int
+	AutomaticBackupEnabled  bool
+	AutomaticBackupSchedule string
+	MaxUploadSizeMB         int
+	InitialAdminUsername    string
+	InitialAdminPassword    string
+	InitialAdminEmail       string
+	InitialAdminRole        string
 }
 
 func Load() (*Config, error) {
 	c := &Config{
-		AppName:              getEnv("APP_NAME", "hub"),
-		AppEnv:               getEnv("APP_ENV", "development"),
-		AppAddr:              getEnv("APP_ADDR", "0.0.0.0:8080"),
-		AppBaseURL:           getEnv("APP_BASE_URL", "http://localhost:8080"),
-		DatabasePath:         getEnv("DATABASE_PATH", "./data/hub.db"),
-		RedisAddr:            getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
-		SessionCookieName:    getEnv("SESSION_COOKIE_NAME", "hub_session"),
-		HUBSecretKey:         os.Getenv("HUB_SECRET_KEY"),
-		BackupDir:            getEnv("BACKUP_DIR", "./backups"),
-		BackupRetentionCount: 20,
-		BackupRetentionDays:  30,
-		InitialAdminUsername: getEnv("INITIAL_ADMIN_USERNAME", "admin"),
-		InitialAdminPassword: getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
-		InitialAdminEmail:    os.Getenv("INITIAL_ADMIN_EMAIL"),
-		InitialAdminRole:     getEnv("INITIAL_ADMIN_ROLE", "owner"),
+		AppName:                 getEnv("APP_NAME", "hub"),
+		AppEnv:                  getEnv("APP_ENV", "development"),
+		AppAddr:                 getEnv("APP_ADDR", "0.0.0.0:8080"),
+		AppBaseURL:              getEnv("APP_BASE_URL", "http://localhost:8080"),
+		DatabasePath:            getEnv("DATABASE_PATH", "./data/hub.db"),
+		RedisAddr:               getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:           os.Getenv("REDIS_PASSWORD"),
+		SessionCookieName:       getEnv("SESSION_COOKIE_NAME", "hub_session"),
+		HUBSecretKey:            os.Getenv("HUB_SECRET_KEY"),
+		BackupDir:               getEnv("BACKUP_DIR", "./backups"),
+		BackupRetentionCount:    20,
+		BackupRetentionDays:     30,
+		AutomaticBackupSchedule: getEnv("AUTOMATIC_BACKUP_SCHEDULE", "daily"),
+		InitialAdminUsername:    getEnv("INITIAL_ADMIN_USERNAME", "admin"),
+		InitialAdminPassword:    getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
+		InitialAdminEmail:       os.Getenv("INITIAL_ADMIN_EMAIL"),
+		InitialAdminRole:        getEnv("INITIAL_ADMIN_ROLE", "owner"),
 	}
 
 	var err error
@@ -73,6 +76,12 @@ func Load() (*Config, error) {
 	}
 	if c.BackupRetentionDays, err = parseIntEnv("BACKUP_RETENTION_DAYS", 30); err != nil {
 		return nil, err
+	}
+	if c.AutomaticBackupEnabled, err = parseBoolEnv("AUTOMATIC_BACKUP_ENABLED", false); err != nil {
+		return nil, err
+	}
+	if !isValidBackupSchedule(c.AutomaticBackupSchedule) {
+		return nil, fmt.Errorf("invalid AUTOMATIC_BACKUP_SCHEDULE")
 	}
 
 	if c.HUBSecretKey == "" {
@@ -113,4 +122,25 @@ func parseIntEnv(key string, fallback int) (int, error) {
 		return 0, fmt.Errorf("invalid %s: %w", key, err)
 	}
 	return parsed, nil
+}
+
+func parseBoolEnv(key string, fallback bool) (bool, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func isValidBackupSchedule(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "daily", "weekly", "monthly":
+		return true
+	default:
+		return false
+	}
 }

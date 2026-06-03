@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/services"
 	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPM/hub/internal/services"
 )
 
 func TestRenderAdminBackupsPageHidesDeleteForAdmin(t *testing.T) {
@@ -14,14 +14,14 @@ func TestRenderAdminBackupsPageHidesDeleteForAdmin(t *testing.T) {
 	if !strings.Contains(html, "Create backup") {
 		t.Fatalf("expected export action")
 	}
-	if strings.Contains(html, "Delete") {
+	if strings.Contains(html, `data-bs-target="#backupDeleteModal"`) {
 		t.Fatalf("admin should not see delete action")
 	}
 }
 
 func TestRenderAdminBackupsPageShowsDeleteForOwner(t *testing.T) {
 	html := renderAdminBackupsPage([]services.BackupRecord{{Name: "hub-backup-2026-06-04-12-00-00.zip", Size: 123, ModifiedAt: time.Unix(0, 0)}}, security.RoleOwner, "Hub", "/var/backups")
-	if !strings.Contains(html, "Delete") {
+	if !strings.Contains(html, `data-bs-target="#backupDeleteModal"`) {
 		t.Fatalf("owner should see delete action")
 	}
 }

@@ -21,26 +21,26 @@ import (
 	"github.com/AmooVPM/hub/internal/database"
 	"github.com/AmooVPM/hub/internal/models"
 	"github.com/AmooVPM/hub/internal/repositories"
-	"github.com/AmooVPM/hub/internal/services"
 	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPM/hub/internal/services"
 )
 
 type Runner struct {
-	cfg        *config.Config
-	db         *sql.DB
-	redis      *redis.Client
-	admins     repositories.AdminRepository
-	clients    repositories.ClientRepository
-	refreshes  repositories.RefreshTokenRepository
-	panels     repositories.PanelRepository
-	inbounds   repositories.InboundRepository
-	jobs       *services.JobService
+	cfg         *config.Config
+	db          *sql.DB
+	redis       *redis.Client
+	admins      repositories.AdminRepository
+	clients     repositories.ClientRepository
+	refreshes   repositories.RefreshTokenRepository
+	panels      repositories.PanelRepository
+	inbounds    repositories.InboundRepository
+	jobs        *services.JobService
 	panelHealth *services.HealthService
-	backups    *services.BackupService
-	audit      repositories.AuditRepository
-	logger     *slog.Logger
-	loginLocks *attemptTracker
-	server     *fiber.App
+	backups     *services.BackupService
+	audit       repositories.AuditRepository
+	logger      *slog.Logger
+	loginLocks  *attemptTracker
+	server      *fiber.App
 }
 
 const clientSessionCookieName = "hub_client_session"
@@ -93,22 +93,23 @@ func New(logger *slog.Logger) (*Runner, error) {
 	}
 
 	runner := &Runner{
-		cfg:        cfg,
-		db:         db,
-		redis:      rdb,
-		admins:     admins,
-		clients:    clients,
-		refreshes:  refreshes,
-		panels:     panels,
-		inbounds:   inbounds,
-		jobs:       services.NewJobService(syncJobs),
+		cfg:         cfg,
+		db:          db,
+		redis:       rdb,
+		admins:      admins,
+		clients:     clients,
+		refreshes:   refreshes,
+		panels:      panels,
+		inbounds:    inbounds,
+		jobs:        services.NewJobService(syncJobs),
 		panelHealth: services.NewHealthService(services.NewXUIHealthProbe(cfg.AppName, cfg.HUBSecretKey)),
-		backups:    services.NewBackupService(),
-		audit:      audit,
-		logger:     logger,
-		loginLocks: newAttemptTracker(5, 15*time.Minute),
+		backups:     services.NewBackupService(),
+		audit:       audit,
+		logger:      logger,
+		loginLocks:  newAttemptTracker(5, 15*time.Minute),
 	}
 	runner.server = runner.buildServer()
+	runner.startAutomaticBackups()
 	return runner, nil
 }
 
@@ -131,7 +132,10 @@ func (r *Runner) buildServer() *fiber.App {
 
 	app.Use(recover.New())
 	app.Get("/", r.home)
-	app.Get("/healthz", r.health)
+	app.Get("/health", r.getHealth)
+	app.Get("/health/live", r.getHealthLive)
+	app.Get("/health/ready", r.getHealthReady)
+	app.Get("/healthz", r.getHealthLive)
 	app.Get("/admin/login", r.getAdminLogin)
 	app.Post("/admin/login", r.postAdminLogin)
 	app.Post("/admin/logout", r.postAdminLogout)
@@ -960,7 +964,7 @@ func (t *attemptTracker) blocked(key string) bool {
 }
 
 func renderPage(title, body string) string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>` + html.EscapeString(title) + `</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-body-tertiary">` + body + `</body></html>`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>` + html.EscapeString(title) + `</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-body-tertiary">` + body + `<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script></body></html>`
 }
 
 func renderLoginPage(message, appName string) string {
