@@ -1,4 +1,4 @@
-# TODO.md — ahub
+# TODO.md — hub
 
 Version: 1.0
 
@@ -7,13 +7,13 @@ Status: Planning Phase
 Repository:
 
 ```txt
-github.com/AmooVPM/ahub
+github.com/AmooVPM/hub
 ```
 
 Project Name:
 
 ```txt
-ahub
+hub
 ```
 
 Tagline:
@@ -26,7 +26,7 @@ Central Multi-Panel Management Hub for 3x-ui / Xray Deployments
 
 # 1. Vision
 
-ahub is a centralized management platform that connects to multiple independent 3x-ui panels and allows administrators to manage the entire infrastructure from a single dashboard.
+hub is a centralized management platform that connects to multiple independent 3x-ui panels and allows administrators to manage the entire infrastructure from a single dashboard.
 
 The goal is to eliminate the need to manually log into multiple 3x-ui instances and provide:
 
@@ -40,7 +40,7 @@ The goal is to eliminate the need to manually log into multiple 3x-ui instances 
 * Backup and restore
 * Multi-admin management
 
-ahub must never directly manipulate a 3x-ui database.
+hub must never directly manipulate a 3x-ui database.
 
 All communication with remote panels must happen through officially exposed APIs.
 
@@ -72,7 +72,7 @@ Build a platform where:
                                 ▼
 
                     ┌──────────────────────┐
-                    │        ahub          │
+                    │        hub          │
                     │                      │
                     │ Admin Dashboard      │
                     │ Client Portal        │
@@ -186,10 +186,10 @@ The application MUST NOT:
 # 6. Project Structure
 
 ```txt
-ahub/
+hub/
 │
 ├── cmd/
-│   └── ahub/
+│   └── hub/
 │       └── main.go
 │
 ├── internal/
@@ -258,20 +258,20 @@ Create:
 Contents:
 
 ```env
-APP_NAME=ahub
+APP_NAME=hub
 APP_ENV=development
 
 APP_ADDR=0.0.0.0:8080
 
 APP_BASE_URL=http://localhost:8080
 
-DATABASE_PATH=./data/ahub.db
+DATABASE_PATH=./data/hub.db
 
 REDIS_ADDR=localhost:6379
 REDIS_PASSWORD=
 REDIS_DB=0
 
-SESSION_COOKIE_NAME=ahub_session
+SESSION_COOKIE_NAME=hub_session
 
 SESSION_TTL_HOURS=168
 
@@ -279,7 +279,7 @@ JWT_ACCESS_TTL_MINUTES=15
 
 JWT_REFRESH_TTL_DAYS=30
 
-AHUB_SECRET_KEY=replace_me
+HUB_SECRET_KEY=replace_me
 
 BACKUP_DIR=./backups
 
@@ -612,7 +612,7 @@ AES-256-GCM
 Key source:
 
 ```txt
-AHUB_SECRET_KEY
+HUB_SECRET_KEY
 ```
 
 Tasks:
@@ -662,7 +662,7 @@ Phase 1 completion criteria:
 
 # 17. Authentication Overview
 
-ahub must support two separate authentication systems:
+hub must support two separate authentication systems:
 
 ```txt
 1. Admin authentication
@@ -1354,12 +1354,12 @@ Response:
 
 ```json
 {
-  "subscription_url": "https://ahub.example.com/sub/CLIENT_TOKEN",
+  "subscription_url": "https://hub.example.com/sub/CLIENT_TOKEN",
   "formats": {
-    "raw": "https://ahub.example.com/sub/CLIENT_TOKEN/raw",
-    "base64": "https://ahub.example.com/sub/CLIENT_TOKEN/base64",
-    "clash": "https://ahub.example.com/sub/CLIENT_TOKEN/clash",
-    "singbox": "https://ahub.example.com/sub/CLIENT_TOKEN/singbox"
+    "raw": "https://hub.example.com/sub/CLIENT_TOKEN/raw",
+    "base64": "https://hub.example.com/sub/CLIENT_TOKEN/base64",
+    "clash": "https://hub.example.com/sub/CLIENT_TOKEN/clash",
+    "singbox": "https://hub.example.com/sub/CLIENT_TOKEN/singbox"
   }
 }
 ```
@@ -1676,7 +1676,7 @@ Part 2 is complete when:
 
 # 44. 3x-ui Connector Overview
 
-ahub must communicate with each remote `3x-ui` panel through HTTP/API only.
+hub must communicate with each remote `3x-ui` panel through HTTP/API only.
 
 The connector layer must be isolated in:
 
@@ -1698,7 +1698,7 @@ internal/xui/
 
 The connector must hide all 3x-ui-specific API details from the rest of the application.
 
-The rest of ahub should call high-level methods like:
+The rest of hub should call high-level methods like:
 
 ```go
 Login(ctx context.Context) error
@@ -1819,12 +1819,12 @@ Tasks:
 Redis key:
 
 ```txt
-ahub:panel:{panel_id}:cookies
+hub:panel:{panel_id}:cookies
 ```
 
 Acceptance criteria:
 
-* ahub does not login on every request.
+* hub does not login on every request.
 * Expired sessions recover automatically.
 * Wrong credentials mark panel as authentication error.
 
@@ -2107,7 +2107,7 @@ internal/services/client/
 
 Responsibilities:
 
-* Create central ahub clients.
+* Create central hub clients.
 * Update clients.
 * Disable clients.
 * Enable clients.
@@ -2229,7 +2229,7 @@ Tasks:
 
 # 61. Client Attachment Overview
 
-A central ahub client can be attached to many remote inbounds across many panels.
+A central hub client can be attached to many remote inbounds across many panels.
 
 Example:
 
@@ -2327,13 +2327,13 @@ When creating remote clients in 3x-ui, generate a stable remote identifier.
 Recommended:
 
 ```txt
-ahub_<client_username>_<client_id>_<inbound_id>
+hub_<client_username>_<client_id>_<inbound_id>
 ```
 
 Example:
 
 ```txt
-ahub_ali_12_3
+hub_ali_12_3
 ```
 
 Rules:
@@ -2405,7 +2405,7 @@ Tasks:
 
 # 67. Config Generation
 
-ahub should generate final config links from inbound data and remote client data.
+hub should generate final config links from inbound data and remote client data.
 
 Supported initially:
 
@@ -2610,8 +2610,8 @@ Tasks:
 Redis keys:
 
 ```txt
-ahub:sub:{token}:raw
-ahub:sub:{token}:base64
+hub:sub:{token}:raw
+hub:sub:{token}:base64
 ```
 
 Tasks:
@@ -2690,7 +2690,7 @@ Tasks:
 Redis lock key:
 
 ```txt
-ahub:lock:sync:panel:{panel_id}
+hub:lock:sync:panel:{panel_id}
 ```
 
 ---
@@ -2843,23 +2843,23 @@ Do not implement until client API is stable.
 
 Part 3 is complete when:
 
-* ahub can connect to a 3x-ui panel.
-* ahub can persist and reuse panel sessions.
-* ahub can detect expired sessions.
-* ahub can sync inbounds.
-* ahub can display all inbounds.
+* hub can connect to a 3x-ui panel.
+* hub can persist and reuse panel sessions.
+* hub can detect expired sessions.
+* hub can sync inbounds.
+* hub can display all inbounds.
 * Admin can create central clients.
 * Admin can attach clients to remote inbounds.
-* ahub can create remote clients through 3x-ui API.
-* ahub stores remote mappings.
-* ahub can generate raw subscription output.
-* ahub can generate base64 subscription output.
+* hub can create remote clients through 3x-ui API.
+* hub stores remote mappings.
+* hub can generate raw subscription output.
+* hub can generate base64 subscription output.
 * Client subscription link works.
 * Traffic usage can be synced manually.
 * Sync jobs are stored and visible.
 * Partial failures are handled clearly.
 
-# TODO.md — ahub
+# TODO.md — hub
 
 # PART 4 — Backup/Restore, Monitoring, Webhooks, Notifications, Background Jobs
 
@@ -2867,7 +2867,7 @@ Part 3 is complete when:
 
 # 85. Backup / Restore Overview
 
-ahub uses SQLite as the main database, so backup and restore must be first-class features.
+hub uses SQLite as the main database, so backup and restore must be first-class features.
 
 Admins must be able to:
 
@@ -2928,20 +2928,20 @@ Tasks:
 Backup filename format:
 
 ```txt
-ahub-backup-YYYY-MM-DD-HH-MM-SS.zip
+hub-backup-YYYY-MM-DD-HH-MM-SS.zip
 ```
 
 Zip contents:
 
 ```txt
-ahub.db
+hub.db
 metadata.json
 ```
 
 Example:
 
 ```txt
-ahub-backup-2026-06-03-19-30-00.zip
+hub-backup-2026-06-03-19-30-00.zip
 ```
 
 ---
@@ -2952,7 +2952,7 @@ ahub-backup-2026-06-03-19-30-00.zip
 
 ```json
 {
-  "app": "ahub",
+  "app": "hub",
   "version": "0.1.0",
   "database": "sqlite",
   "schema_version": 1,
@@ -2964,7 +2964,7 @@ Tasks:
 
 * [ ] Generate metadata on export.
 * [ ] Validate metadata on import.
-* [ ] Reject backups where `app != "ahub"`.
+* [ ] Reject backups where `app != "hub"`.
 * [ ] Reject unsupported schema versions.
 * [ ] Reject malformed metadata.
 
@@ -3023,7 +3023,7 @@ Import flow:
 3. Extract only into temporary directory.
 4. Prevent path traversal.
 5. Validate metadata.json.
-6. Validate ahub.db exists.
+6. Validate hub.db exists.
 7. Validate SQLite file.
 8. Validate schema version.
 9. Create automatic pre-import backup.
@@ -3133,7 +3133,7 @@ Tasks:
 
 # 94. Monitoring Overview
 
-ahub must expose enough monitoring to understand:
+hub must expose enough monitoring to understand:
 
 ```txt
 - App health
@@ -3204,19 +3204,19 @@ For Prometheus-compatible metrics.
 Metrics:
 
 ```txt
-ahub_http_requests_total
-ahub_http_request_duration_seconds
-ahub_panels_total
-ahub_panels_online
-ahub_panels_offline
-ahub_clients_total
-ahub_clients_active
-ahub_clients_disabled
-ahub_subscriptions_requests_total
-ahub_sync_jobs_total
-ahub_sync_jobs_failed_total
-ahub_backup_exports_total
-ahub_backup_imports_total
+hub_http_requests_total
+hub_http_request_duration_seconds
+hub_panels_total
+hub_panels_online
+hub_panels_offline
+hub_clients_total
+hub_clients_active
+hub_clients_disabled
+hub_subscriptions_requests_total
+hub_sync_jobs_total
+hub_sync_jobs_failed_total
+hub_backup_exports_total
+hub_backup_imports_total
 ```
 
 Tasks:
@@ -3263,7 +3263,7 @@ Health check should verify:
 
 # 98. Background Jobs Overview
 
-ahub needs background jobs for:
+hub needs background jobs for:
 
 ```txt
 - Panel sync
@@ -3346,10 +3346,10 @@ Use Redis locks to prevent dangerous concurrent work.
 Examples:
 
 ```txt
-ahub:lock:sync:panel:{panel_id}
-ahub:lock:backup:export
-ahub:lock:backup:import
-ahub:lock:client:{client_id}:attach
+hub:lock:sync:panel:{panel_id}
+hub:lock:backup:export
+hub:lock:backup:import
+hub:lock:client:{client_id}:attach
 ```
 
 Tasks:
@@ -3400,7 +3400,7 @@ Tasks:
 
 # 103. Webhooks Overview
 
-ahub should support outgoing webhooks for automation.
+hub should support outgoing webhooks for automation.
 
 Events:
 
@@ -3763,7 +3763,7 @@ Tasks:
 
 # 115. Reverse Proxy Awareness
 
-ahub may run behind:
+hub may run behind:
 
 ```txt
 - Nginx
@@ -3925,7 +3925,7 @@ PRAGMA integrity_check;
 Required tests:
 
 * [ ] Export creates zip.
-* [ ] Zip contains ahub.db.
+* [ ] Zip contains hub.db.
 * [ ] Zip contains metadata.json.
 * [ ] Metadata is valid.
 * [ ] Import rejects missing metadata.
@@ -3989,12 +3989,12 @@ Part 4 is complete when:
 
 # 126. Docker Requirements
 
-ahub must be easy to run with Docker Compose.
+hub must be easy to run with Docker Compose.
 
 Required services:
 
 ```txt
-ahub
+hub
 redis
 ```
 
@@ -4035,7 +4035,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o /out/ahub ./cmd/ahub
+RUN go build -o /out/hub ./cmd/hub
 
 FROM alpine:latest
 
@@ -4043,18 +4043,18 @@ RUN apk add --no-cache ca-certificates sqlite-libs tzdata
 
 WORKDIR /app
 
-RUN adduser -D -H ahub
+RUN adduser -D -H hub
 
-COPY --from=builder /out/ahub /app/ahub
+COPY --from=builder /out/hub /app/hub
 COPY web /app/web
 
-RUN mkdir -p /app/data /app/backups && chown -R ahub:ahub /app
+RUN mkdir -p /app/data /app/backups && chown -R hub:hub /app
 
-USER ahub
+USER hub
 
 EXPOSE 8080
 
-CMD ["/app/ahub"]
+CMD ["/app/hub"]
 ```
 
 Tasks:
@@ -4081,20 +4081,20 @@ Example:
 
 ```yaml
 services:
-  ahub:
+  hub:
     build: .
-    container_name: ahub
+    container_name: hub
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - APP_NAME=ahub
+      - APP_NAME=hub
       - APP_ENV=production
       - APP_ADDR=0.0.0.0:8080
       - APP_BASE_URL=http://localhost:8080
-      - DATABASE_PATH=/app/data/ahub.db
+      - DATABASE_PATH=/app/data/hub.db
       - REDIS_ADDR=redis:6379
-      - AHUB_SECRET_KEY=change-this-secret
+      - HUB_SECRET_KEY=change-this-secret
       - BACKUP_DIR=/app/backups
       - TRUST_PROXY=false
     volumes:
@@ -4104,14 +4104,14 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test: ["CMD", "/app/ahub", "healthcheck"]
+      test: ["CMD", "/app/hub", "healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
 
   redis:
     image: redis:7-alpine
-    container_name: ahub-redis
+    container_name: hub-redis
     restart: unless-stopped
     volumes:
       - redis-data:/data
@@ -4170,13 +4170,13 @@ Targets:
 
 ```makefile
 run:
-	go run ./cmd/ahub
+	go run ./cmd/hub
 
 test:
 	go test ./...
 
 build:
-	go build -o bin/ahub ./cmd/ahub
+	go build -o bin/hub ./cmd/hub
 
 fmt:
 	go fmt ./...
@@ -4185,7 +4185,7 @@ lint:
 	golangci-lint run
 
 docker-build:
-	docker build -t ahub .
+	docker build -t hub .
 
 docker-up:
 	docker compose up -d
@@ -4194,13 +4194,13 @@ docker-down:
 	docker compose down
 
 docker-logs:
-	docker compose logs -f ahub
+	docker compose logs -f hub
 
 migrate:
-	go run ./cmd/ahub migrate
+	go run ./cmd/hub migrate
 
 dev:
-	go run ./cmd/ahub
+	go run ./cmd/hub
 ```
 
 Tasks:
@@ -4216,12 +4216,12 @@ Tasks:
 The binary should support optional commands:
 
 ```txt
-ahub serve
-ahub migrate
-ahub create-admin
-ahub healthcheck
-ahub backup export
-ahub backup import <file>
+hub serve
+hub migrate
+hub create-admin
+hub healthcheck
+hub backup export
+hub backup import <file>
 ```
 
 Tasks:
@@ -4696,7 +4696,7 @@ Cache modules
 go mod download
 go fmt check
 go test ./...
-go build ./cmd/ahub
+go build ./cmd/hub
 Docker build
 ```
 
@@ -4731,9 +4731,9 @@ jobs:
 
       - run: go test ./...
 
-      - run: go build -o ahub ./cmd/ahub
+      - run: go build -o hub ./cmd/hub
 
-      - run: docker build -t ahub .
+      - run: docker build -t hub .
 ```
 
 Tasks:
@@ -4815,7 +4815,7 @@ The MVP is complete when:
 * [ ] Admin can sync inbounds.
 * [ ] Admin can create a client.
 * [ ] Admin can attach client to at least one inbound.
-* [ ] ahub creates remote client in 3x-ui.
+* [ ] hub creates remote client in 3x-ui.
 * [ ] Subscription link returns at least raw/base64 configs.
 * [ ] Client can log in to portal.
 * [ ] Client can see configs.
