@@ -889,15 +889,15 @@ POST /admin/users/:id/reset-password
 Tasks:
 
 * [x] List admin users.
-* [ ] Create admin user.
-* [ ] Edit admin user.
-* [ ] Change role.
-* [ ] Disable admin user.
-* [ ] Enable admin user.
-* [ ] Delete admin user.
-* [ ] Prevent deleting last owner.
-* [ ] Prevent disabling last owner.
-* [ ] Add audit logs.
+* [x] Create admin user.
+* [x] Edit admin user.
+* [x] Change role.
+* [x] Disable admin user.
+* [x] Enable admin user.
+* [x] Delete admin user.
+* [x] Prevent deleting last owner.
+* [x] Prevent disabling last owner.
+* [x] Add audit logs.
 
 Acceptance criteria:
 

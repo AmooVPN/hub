@@ -12,10 +12,15 @@ import (
 
 type AdminRepository interface {
 	Count(context.Context) (int64, error)
+	CountByRole(context.Context, string) (int64, error)
 	Create(context.Context, *models.AdminUser) error
 	FindByUsername(context.Context, string) (*models.AdminUser, error)
 	FindByID(context.Context, int64) (*models.AdminUser, error)
 	List(context.Context) ([]models.AdminUser, error)
+	Update(context.Context, *models.AdminUser) error
+	UpdatePassword(context.Context, int64, string) error
+	SetActive(context.Context, int64, bool) error
+	Delete(context.Context, int64) error
 }
 
 type ClientRepository interface {
@@ -47,6 +52,14 @@ func NewAuditRepository(db *sql.DB) AuditRepository { return &sqliteAuditReposit
 func (r *sqliteAdminRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_users`).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *sqliteAdminRepository) CountByRole(ctx context.Context, role string) (int64, error) {
+	var count int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_users WHERE role = ? AND active = 1`, role).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -99,6 +112,32 @@ func (r *sqliteAdminRepository) List(ctx context.Context) ([]models.AdminUser, e
 		items = append(items, *item)
 	}
 	return items, rows.Err()
+}
+
+func (r *sqliteAdminRepository) Update(ctx context.Context, admin *models.AdminUser) error {
+	if admin == nil {
+		return errors.New("admin is nil")
+	}
+	if admin.UpdatedAt.IsZero() {
+		admin.UpdatedAt = time.Now().UTC()
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE admin_users SET username = ?, email = ?, role = ?, active = ?, updated_at = ? WHERE id = ?`, admin.Username, nullString(admin.Email), admin.Role, boolToInt(admin.Active), admin.UpdatedAt.UTC(), admin.ID)
+	return err
+}
+
+func (r *sqliteAdminRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE id = ?`, passwordHash, time.Now().UTC(), id)
+	return err
+}
+
+func (r *sqliteAdminRepository) SetActive(ctx context.Context, id int64, active bool) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE admin_users SET active = ?, updated_at = ? WHERE id = ?`, boolToInt(active), time.Now().UTC(), id)
+	return err
+}
+
+func (r *sqliteAdminRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM admin_users WHERE id = ?`, id)
+	return err
 }
 
 func scanAdmin(scanner interface{ Scan(...any) error }) (*models.AdminUser, error) {
