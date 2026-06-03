@@ -126,6 +126,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/logout", r.postAdminLogout)
 	app.Use("/admin", r.requireAdminSession)
 	app.Get("/admin", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboard)
+	app.Get("/admin/dashboard/widgets", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboardWidgets)
 	app.Get("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUsers)
 	app.Get("/admin/users/new", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUserNew)
 	app.Post("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.postAdminUserCreate)
@@ -254,14 +255,6 @@ func (r *Runner) requireAdminSession(c *fiber.Ctx) error {
 	}
 	c.Locals("admin", admin)
 	return c.Next()
-}
-
-func (r *Runner) getAdminDashboard(c *fiber.Ctx) error {
-	admin, ok := currentAdmin(c)
-	if !ok {
-		return c.Redirect("/admin/login", fiber.StatusFound)
-	}
-	return c.Type("html").SendString(renderDashboardPage(admin, r.cfg.AppName))
 }
 
 func (r *Runner) getAdminUsers(c *fiber.Ctx) error {
@@ -855,14 +848,6 @@ func renderLoginPage(message, appName string) string {
 		alert = `<div class="alert alert-warning">` + html.EscapeString(message) + `</div>`
 	}
 	return renderPage("Admin Login", `<main class="container py-5" style="max-width: 480px;"><div class="card shadow-sm"><div class="card-body p-4"><h1 class="h4 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-4">Admin sign in</p>` + alert + `<form method="post" action="/admin/login" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" autocomplete="username" required></div><div><label class="form-label" for="password">Password</label><input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary w-100" type="submit">Sign in</button></form></div></div></main>`)
-}
-
-func renderDashboardPage(admin *models.AdminUser, appName string) string {
-	usersLink := ""
-	if security.HasPermission(admin.Role, security.PermissionManageAdmins) {
-		usersLink = `<a class="btn btn-outline-primary btn-sm" href="/admin/users">Manage admins</a>`
-	}
-	return renderPage("Admin Dashboard", `<main class="container py-5"><div class="d-flex flex-column gap-3"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="card"><div class="card-body"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2"><div><div class="fw-semibold">Admin dashboard</div><div class="text-body-secondary small">Initial milestone running</div></div><div class="d-flex gap-2">` + usersLink + `<form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div></div></div></div></main>`)
 }
 
 func renderAdminUsersPage(admins []models.AdminUser, appName string) string {

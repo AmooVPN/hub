@@ -1525,12 +1525,12 @@ Show:
 
 Tasks:
 
-* [ ] Create dashboard service.
-* [ ] Create dashboard handler.
-* [ ] Create dashboard template.
-* [ ] Add HTMX refresh for health widgets.
-* [ ] Add cards.
-* [ ] Add responsive layout.
+* [x] Create dashboard service.
+* [x] Create dashboard handler.
+* [x] Create dashboard template.
+* [x] Add HTMX refresh for health widgets.
+* [x] Add cards.
+* [x] Add responsive layout.
 
 Acceptance criteria:
 
