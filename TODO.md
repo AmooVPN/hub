@@ -1777,18 +1777,18 @@ compat.go       Version compatibility helpers
 
 Tasks:
 
-* [ ] Create `XUIClient` struct.
-* [ ] Store panel ID.
-* [ ] Store base URL.
-* [ ] Store username.
-* [ ] Store decrypted password only in memory.
-* [ ] Store HTTP client with timeout.
-* [ ] Support custom User-Agent.
-* [ ] Normalize trailing slash in base URL.
-* [ ] Support context cancellation.
+* [x] Create `XUIClient` struct.
+* [x] Store panel ID.
+* [x] Store base URL.
+* [x] Store username.
+* [x] Store decrypted password only in memory.
+* [x] Store HTTP client with timeout.
+* [x] Support custom User-Agent.
+* [x] Normalize trailing slash in base URL.
+* [x] Support context cancellation.
 * [ ] Add structured logging without secrets.
-* [ ] Add safe request helper.
-* [ ] Add JSON encode/decode helpers.
+* [x] Add safe request helper.
+* [x] Add JSON encode/decode helpers.
 * [ ] Add form request helper if 3x-ui endpoint requires form login.
 
 Timeouts:
@@ -1859,11 +1859,11 @@ type XUIError struct {
 
 Tasks:
 
-* [ ] Normalize HTTP status errors.
-* [ ] Normalize JSON parsing errors.
-* [ ] Normalize network errors.
-* [ ] Normalize 3x-ui API error messages.
-* [ ] Expose user-friendly message to handlers.
+* [x] Normalize HTTP status errors.
+* [x] Normalize JSON parsing errors.
+* [x] Normalize network errors.
+* [x] Normalize 3x-ui API error messages.
+* [x] Expose user-friendly message to handlers.
 * [ ] Keep technical error in logs.
 
 ---
@@ -1945,21 +1945,21 @@ POST /admin/panels/:id/clear-session
 
 Tasks:
 
-* [ ] List panels.
-* [ ] Show panel create form.
-* [ ] Save new panel.
-* [ ] Validate base URL.
-* [ ] Validate username/password.
-* [ ] Encrypt password before storing.
-* [ ] Show panel detail.
-* [ ] Edit panel.
-* [ ] Delete panel.
-* [ ] Test connection.
-* [ ] Sync panel.
-* [ ] Clear saved session cookie.
-* [ ] Show last error.
-* [ ] Show last sync time.
-* [ ] Show detected version.
+* [x] List panels.
+* [x] Show panel create form.
+* [x] Save new panel.
+* [x] Validate base URL.
+* [x] Validate username/password.
+* [x] Encrypt password before storing.
+* [x] Show panel detail.
+* [x] Edit panel.
+* [x] Delete panel.
+* [x] Test connection.
+* [x] Sync panel.
+* [x] Clear saved session cookie.
+* [x] Show last error.
+* [x] Show last sync time.
+* [x] Show detected version.
 
 Acceptance criteria:
 
@@ -1997,9 +1997,9 @@ Rules:
 
 Tasks:
 
-* [ ] Add constants.
-* [ ] Add UI badges.
-* [ ] Add status update logic.
+* [x] Add constants.
+* [x] Add UI badges.
+* [x] Add status update logic.
 * [ ] Add status filters.
 
 ---

@@ -89,7 +89,7 @@ type Panel struct {
 }
 
 func (p Panel) Validate() error {
-	if p.Name == "" || p.BaseURL == "" || p.Username == "" || p.EncryptedPassword == "" || p.Status == "" {
+	if p.Name == "" || p.BaseURL == "" || p.Username == "" || p.EncryptedPassword == "" || !IsValidPanelStatus(p.Status) {
 		return errors.New("invalid panel")
 	}
 	return nil

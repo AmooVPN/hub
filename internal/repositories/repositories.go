@@ -33,6 +33,9 @@ type ClientRepository interface {
 type PanelRepository interface {
 	Create(context.Context, *models.Panel) error
 	List(context.Context) ([]models.Panel, error)
+	FindByID(context.Context, int64) (*models.Panel, error)
+	Update(context.Context, *models.Panel) error
+	Delete(context.Context, int64) error
 }
 
 type AuditRepository interface {
@@ -238,6 +241,39 @@ func (r *sqlitePanelRepository) Create(ctx context.Context, panel *models.Panel)
 	}
 	panel.ID = id
 	return nil
+}
+
+func (r *sqlitePanelRepository) FindByID(ctx context.Context, id int64) (*models.Panel, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, name, base_url, username, encrypted_password, version, status, last_sync_at, last_error, created_at, updated_at FROM panels WHERE id = ?`, id)
+	var panel models.Panel
+	var version, lastError sql.NullString
+	var lastSyncAt sql.NullTime
+	if err := row.Scan(&panel.ID, &panel.Name, &panel.BaseURL, &panel.Username, &panel.EncryptedPassword, &version, &panel.Status, &lastSyncAt, &lastError, &panel.CreatedAt, &panel.UpdatedAt); err != nil {
+		return nil, err
+	}
+	panel.Version = version.String
+	panel.LastError = lastError.String
+	if lastSyncAt.Valid {
+		t := lastSyncAt.Time
+		panel.LastSyncAt = &t
+	}
+	return &panel, nil
+}
+
+func (r *sqlitePanelRepository) Update(ctx context.Context, panel *models.Panel) error {
+	if panel == nil {
+		return errors.New("panel is nil")
+	}
+	if panel.UpdatedAt.IsZero() {
+		panel.UpdatedAt = time.Now().UTC()
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE panels SET name = ?, base_url = ?, username = ?, encrypted_password = ?, version = ?, status = ?, last_sync_at = ?, last_error = ?, updated_at = ? WHERE id = ?`, panel.Name, panel.BaseURL, panel.Username, panel.EncryptedPassword, nullString(panel.Version), panel.Status, nullTime(panel.LastSyncAt), nullString(panel.LastError), panel.UpdatedAt.UTC(), panel.ID)
+	return err
+}
+
+func (r *sqlitePanelRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM panels WHERE id = ?`, id)
+	return err
 }
 
 func (r *sqlitePanelRepository) List(ctx context.Context) ([]models.Panel, error) {

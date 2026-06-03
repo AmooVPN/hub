@@ -17,14 +17,14 @@ type adminNavItem struct {
 func renderAdminShell(appName string, adminRole string, activePage string, content string) string {
 	items := []adminNavItem{
 		{Label: "Dashboard", Href: "/admin", Active: activePage == "dashboard", Allowed: true},
-		{Label: "Panels", Href: "/admin/panels", Active: activePage == "panels", Allowed: security.HasPermission(adminRole, security.PermissionManagePanels) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
+		{Label: "Panels", Href: "/admin/panels", Active: activePage == "panels", Allowed: security.HasPermission(adminRole, security.PermissionManagePanels)},
 		{Label: "Inbounds", Href: "/admin/inbounds", Active: activePage == "inbounds", Allowed: security.HasPermission(adminRole, security.PermissionManageInbounds) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
 		{Label: "Clients", Href: "/admin/clients", Active: activePage == "clients", Allowed: security.HasPermission(adminRole, security.PermissionManageClients) || security.HasPermission(adminRole, security.PermissionViewClients)},
 		{Label: "Subscriptions", Href: "/admin/subscriptions", Active: activePage == "subscriptions", Allowed: security.HasPermission(adminRole, security.PermissionManageSubscriptions) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
 		{Label: "Sync Jobs", Href: "/admin/sync-jobs", Active: activePage == "sync-jobs", Allowed: security.HasPermission(adminRole, security.PermissionViewDashboard)},
 		{Label: "Backups", Href: "/admin/backups", Active: activePage == "backups", Allowed: security.HasPermission(adminRole, security.PermissionManageBackups) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
 		{Label: "Audit Logs", Href: "/admin/audit-logs", Active: activePage == "audit-logs", Allowed: security.HasPermission(adminRole, security.PermissionViewAuditLogs)},
-		{Label: "Settings", Href: "/admin/settings", Active: activePage == "settings", Allowed: security.HasPermission(adminRole, security.PermissionManageSettings) || security.HasPermission(adminRole, security.PermissionViewDashboard)},
+		{Label: "Settings", Href: "/admin/settings", Active: activePage == "settings", Allowed: security.HasPermission(adminRole, security.PermissionManageSettings)},
 		{Label: "Admin Users", Href: "/admin/users", Active: activePage == "admin-users", Allowed: security.HasPermission(adminRole, security.PermissionManageAdmins)},
 	}
 
