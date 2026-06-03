@@ -170,6 +170,52 @@ var migrations = []Migration{
 			`ALTER TABLE panels ADD COLUMN last_checked_at DATETIME;`,
 		},
 	},
+	{
+		Version: 6,
+		Name:    "add_webhook_tables",
+		SQL: []string{
+			`CREATE TABLE IF NOT EXISTS webhooks (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT NOT NULL,
+				url TEXT NOT NULL,
+				secret TEXT NOT NULL,
+				active BOOLEAN NOT NULL DEFAULT 1,
+				events TEXT NOT NULL,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS webhook_deliveries (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				webhook_id INTEGER NOT NULL,
+				event_type TEXT NOT NULL,
+				payload_json TEXT NOT NULL,
+				status TEXT NOT NULL,
+				response_status INTEGER,
+				response_body TEXT,
+				error_message TEXT,
+				attempts INTEGER NOT NULL DEFAULT 0,
+				next_retry_at DATETIME,
+				created_at DATETIME NOT NULL,
+				delivered_at DATETIME,
+				FOREIGN KEY(webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
+			);`,
+		},
+	},
+	{
+		Version: 7,
+		Name:    "add_notifications_table",
+		SQL: []string{
+			`CREATE TABLE IF NOT EXISTS notifications (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				type TEXT NOT NULL,
+				severity TEXT NOT NULL,
+				title TEXT NOT NULL,
+				message TEXT NOT NULL,
+				read_at DATETIME,
+				created_at DATETIME NOT NULL
+			);`,
+		},
+	},
 }
 
 func RunMigrations(db *sql.DB) error {

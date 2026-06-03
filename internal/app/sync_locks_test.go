@@ -84,3 +84,17 @@ func TestReleasePanelSyncLockRequiresOwnerToken(t *testing.T) {
 		t.Fatalf("expected lock to be removed, got err=%v", err)
 	}
 }
+
+func TestWithPanelSyncLockFallsBackWithoutRedis(t *testing.T) {
+	runner := &Runner{}
+	called := false
+	if err := runner.withPanelSyncLock(context.Background(), 1, func() error {
+		called = true
+		return nil
+	}); err != nil {
+		t.Fatalf("expected fallback to succeed: %v", err)
+	}
+	if !called {
+		t.Fatal("expected callback to run without redis")
+	}
+}

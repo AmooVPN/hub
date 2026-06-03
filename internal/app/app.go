@@ -155,6 +155,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Get("/admin/sync-jobs", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobs)
 	app.Get("/admin/sync-jobs/:id", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobDetail)
 	app.Post("/admin/sync-jobs/:id/retry", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobRetry)
+	app.Post("/admin/sync-jobs/:id/cancel", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobCancel)
 	app.Get("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.getAdminSettings)
 	app.Get("/admin/backups", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackups)
 	app.Get("/admin/backups/export", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackupsExport)

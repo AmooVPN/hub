@@ -92,6 +92,23 @@ func (r *Runner) postAdminSyncJobRetry(c *fiber.Ctx) error {
 	return c.Redirect(fmt.Sprintf("/admin/sync-jobs/%d", job.ID), fiber.StatusFound)
 }
 
+func (r *Runner) postAdminSyncJobCancel(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid job id")
+	}
+	job, err := r.jobs.Get(c.UserContext(), id)
+	if err != nil {
+		return err
+	}
+	_ = job
+	return c.Status(fiber.StatusNotImplemented).Type("html").SendString(renderSyncJobsMessagePage("Job cancellation is not implemented yet.", r.cfg.AppName, admin.Role))
+}
+
 func (r *Runner) loadSyncJobList(ctx context.Context, statusFilter, panelFilter string) ([]syncJobListRow, error) {
 	query := `SELECT sj.id, COALESCE(p.name, ''), sj.job_type, sj.status, COALESCE(sj.message, ''), sj.retry_count, COALESCE(sj.finished_at, sj.started_at, sj.created_at) FROM sync_jobs sj LEFT JOIN panels p ON p.id = sj.panel_id`
 	clauses := make([]string, 0, 2)
@@ -157,7 +174,8 @@ func renderSyncJobDetailPage(item *syncJobListRow, appName, adminRole string) st
 	if strings.EqualFold(item.Status, models.SyncJobStatusFailed) {
 		retryButton = `<form method="post" action="/admin/sync-jobs/` + strconv.FormatInt(item.ID, 10) + `/retry"><button class="btn btn-outline-primary btn-sm" type="submit">Retry</button></form>`
 	}
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Sync Job #` + strconv.FormatInt(item.ID, 10) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(defaultString(item.PanelName, "No panel")) + `</p></div><div class="d-flex gap-2">` + retryButton + `<a class="btn btn-outline-secondary btn-sm" href="/admin/sync-jobs">Back</a></div></div><div class="card shadow-sm"><div class="card-body"><dl class="row mb-0"><dt class="col-sm-3">Panel</dt><dd class="col-sm-9">` + html.EscapeString(defaultString(item.PanelName, "-")) + `</dd><dt class="col-sm-3">Type</dt><dd class="col-sm-9">` + html.EscapeString(item.JobType) + `</dd><dt class="col-sm-3">Status</dt><dd class="col-sm-9">` + syncJobStatusBadge(item.Status) + `</dd><dt class="col-sm-3">Retries</dt><dd class="col-sm-9">` + html.EscapeString(strconv.FormatInt(item.RetryCount, 10)) + `</dd><dt class="col-sm-3">Message</dt><dd class="col-sm-9">` + html.EscapeString(defaultString(item.Message, "-")) + `</dd><dt class="col-sm-3">When</dt><dd class="col-sm-9">` + html.EscapeString(item.When.Format(time.RFC3339)) + `</dd></dl></div></div></div>`
+	cancelButton := `<form method="post" action="/admin/sync-jobs/` + strconv.FormatInt(item.ID, 10) + `/cancel"><button class="btn btn-outline-warning btn-sm" type="submit">Cancel</button></form>`
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Sync Job #` + strconv.FormatInt(item.ID, 10) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(defaultString(item.PanelName, "No panel")) + `</p></div><div class="d-flex gap-2">` + retryButton + cancelButton + `<a class="btn btn-outline-secondary btn-sm" href="/admin/sync-jobs">Back</a></div></div><div class="card shadow-sm"><div class="card-body"><dl class="row mb-0"><dt class="col-sm-3">Panel</dt><dd class="col-sm-9">` + html.EscapeString(defaultString(item.PanelName, "-")) + `</dd><dt class="col-sm-3">Type</dt><dd class="col-sm-9">` + html.EscapeString(item.JobType) + `</dd><dt class="col-sm-3">Status</dt><dd class="col-sm-9">` + syncJobStatusBadge(item.Status) + `</dd><dt class="col-sm-3">Retries</dt><dd class="col-sm-9">` + html.EscapeString(strconv.FormatInt(item.RetryCount, 10)) + `</dd><dt class="col-sm-3">Message</dt><dd class="col-sm-9">` + html.EscapeString(defaultString(item.Message, "-")) + `</dd><dt class="col-sm-3">When</dt><dd class="col-sm-9">` + html.EscapeString(item.When.Format(time.RFC3339)) + `</dd></dl></div></div></div>`
 	return renderAdminShell(appName, adminRole, "sync-jobs", body)
 }
 

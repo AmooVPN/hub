@@ -23,6 +23,9 @@ func TestRenderSyncJobDetailPageShowsRetryButtonForFailedJobs(t *testing.T) {
 	if !strings.Contains(page, `/admin/sync-jobs/7/retry`) {
 		t.Fatal("expected retry button in failed job detail page")
 	}
+	if !strings.Contains(page, `/admin/sync-jobs/7/cancel`) {
+		t.Fatal("expected cancel button in job detail page")
+	}
 	if strings.Contains(renderSyncJobDetailPage(&syncJobListRow{ID: 7, PanelName: "panel-1", JobType: "traffic_sync", Status: "success", Message: "ok", When: when}, "hub", "admin"), `/admin/sync-jobs/7/retry`) {
 		t.Fatal("did not expect retry button for successful job")
 	}

@@ -1408,7 +1408,7 @@ Tasks:
 
 * [x] Create configs service.
 * [x] Add active config filtering.
-* [ ] Add tests.
+* [x] Add tests.
 
 ---
 
@@ -3390,11 +3390,11 @@ UI must show:
 
 Tasks:
 
-* [ ] Add job list page.
-* [ ] Add job detail page.
-* [ ] Add retry action.
-* [ ] Add cancel action placeholder.
-* [ ] Add filters.
+* [x] Add job list page.
+* [x] Add job detail page.
+* [x] Add retry action.
+* [x] Add cancel action placeholder.
+* [x] Add filters.
 
 ---
 
