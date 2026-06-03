@@ -37,6 +37,8 @@ type Runner struct {
 	server      *fiber.App
 }
 
+const clientSessionCookieName = "hub_client_session"
+
 func New(logger *slog.Logger) (*Runner, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -130,6 +132,16 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/users/:id/enable", security.RequirePermission(security.PermissionManageAdmins), r.postAdminUserEnable)
 	app.Post("/admin/users/:id/delete", security.RequirePermission(security.PermissionManageAdmins), r.postAdminUserDelete)
 	app.Post("/admin/users/:id/reset-password", security.RequirePermission(security.PermissionManageAdmins), r.postAdminUserResetPassword)
+	app.Get("/client/login", r.getClientLogin)
+	app.Post("/client/login", r.postClientLogin)
+	app.Post("/client/logout", r.postClientLogout)
+	app.Use("/client", r.requireClientSession)
+	app.Get("/client", r.getClientDashboard)
+	app.Get("/client/profile", r.getClientProfile)
+	app.Post("/client/profile/password", r.postClientProfilePassword)
+	app.Get("/client/configs", r.getClientConfigs)
+	app.Get("/client/subscription", r.getClientSubscription)
+	app.Get("/client/usage", r.getClientUsage)
 
 	return app
 }
@@ -412,6 +424,158 @@ func (r *Runner) postAdminUserResetPassword(c *fiber.Ctx) error {
 	return c.Type("html").SendString(renderPasswordResetResultPage(target.Username, password, r.cfg.AppName))
 }
 
+func (r *Runner) getClientLogin(c *fiber.Ctx) error {
+	if _, ok := r.loadClientFromRequest(c); ok {
+		return c.Redirect("/client", fiber.StatusFound)
+	}
+	return c.Type("html").SendString(renderClientLoginPage("", r.cfg.AppName))
+}
+
+func (r *Runner) postClientLogin(c *fiber.Ctx) error {
+	username := strings.TrimSpace(c.FormValue("username"))
+	password := c.FormValue("password")
+	key := "client:" + c.IP() + ":" + username
+	if r.loginLocks.blocked(key) {
+		return c.Status(fiber.StatusTooManyRequests).Type("html").SendString(renderClientLoginPage("Too many attempts. Try again later.", r.cfg.AppName))
+	}
+
+	client, err := r.clients.FindByUsername(c.UserContext(), username)
+	if err != nil || client == nil || client.Status == "disabled" || security.ComparePassword(password, client.PasswordHash) != nil {
+		r.loginLocks.fail(key)
+		return c.Status(fiber.StatusUnauthorized).Type("html").SendString(renderClientLoginPage("Invalid credentials.", r.cfg.AppName))
+	}
+	r.loginLocks.success(key)
+
+	token, err := security.RandomToken(32)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+	expires := time.Now().UTC().Add(time.Duration(r.cfg.SessionTTLHrs) * time.Hour)
+	if err := r.redis.Set(ctx, clientSessionKey(token), client.ID, time.Until(expires)).Err(); err != nil {
+		return err
+	}
+	c.Cookie(&fiber.Cookie{
+		Name:     clientSessionCookieName,
+		Value:    token,
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   r.cfg.IsProduction(),
+		SameSite: "Lax",
+		Expires:  expires,
+	})
+	return c.Redirect("/client", fiber.StatusFound)
+}
+
+func (r *Runner) postClientLogout(c *fiber.Ctx) error {
+	client, ok := r.loadClientFromRequest(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	if token := c.Cookies(clientSessionCookieName); token != "" {
+		ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+		defer cancel()
+		_ = r.redis.Del(ctx, clientSessionKey(token)).Err()
+	}
+	c.Cookie(&fiber.Cookie{Name: clientSessionCookieName, Value: "", Path: "/", HTTPOnly: true, Secure: r.cfg.IsProduction(), SameSite: "Lax", Expires: time.Unix(0, 0)})
+	_ = client
+	return c.Redirect("/client/login", fiber.StatusFound)
+}
+
+func (r *Runner) requireClientSession(c *fiber.Ctx) error {
+	client, ok := r.loadClientFromRequest(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	c.Locals("client", client)
+	return c.Next()
+}
+
+func (r *Runner) getClientDashboard(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderClientDashboardPage(summary, r.cfg.AppName))
+}
+
+func (r *Runner) getClientProfile(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	return c.Type("html").SendString(renderClientProfilePage(client, r.cfg.AppName, nil))
+}
+
+func (r *Runner) postClientProfilePassword(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	currentPassword := c.FormValue("current_password")
+	newPassword := strings.TrimSpace(c.FormValue("new_password"))
+	confirmPassword := strings.TrimSpace(c.FormValue("confirm_password"))
+	if err := security.ComparePassword(currentPassword, client.PasswordHash); err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderClientProfilePage(client, r.cfg.AppName, []string{"current password is incorrect"}))
+	}
+	if len(newPassword) < 12 {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderClientProfilePage(client, r.cfg.AppName, []string{"new password must be at least 12 characters"}))
+	}
+	if newPassword != confirmPassword {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderClientProfilePage(client, r.cfg.AppName, []string{"password confirmation does not match"}))
+	}
+	hash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := r.clients.UpdatePassword(c.UserContext(), client.ID, hash); err != nil {
+		return err
+	}
+	client.PasswordHash = hash
+	return c.Type("html").SendString(renderClientProfilePage(client, r.cfg.AppName, []string{"password updated"}))
+}
+
+func (r *Runner) getClientConfigs(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderClientConfigsPage(client, summary.Configs, r.cfg.AppName))
+}
+
+func (r *Runner) getClientSubscription(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderClientSubscriptionPage(summary, r.cfg.AppName))
+}
+
+func (r *Runner) getClientUsage(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return c.Redirect("/client/login", fiber.StatusFound)
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	return c.Type("html").SendString(renderClientUsagePage(summary, r.cfg.AppName))
+}
+
 func (r *Runner) loadAdminFromRequest(c *fiber.Ctx) (*models.AdminUser, bool) {
 	if admin, ok := currentAdmin(c); ok {
 		return admin, true
@@ -441,11 +605,165 @@ func currentAdmin(c *fiber.Ctx) (*models.AdminUser, bool) {
 	return admin, true
 }
 
+func currentClient(c *fiber.Ctx) (*models.Client, bool) {
+	client, ok := c.Locals("client").(*models.Client)
+	if !ok || client == nil {
+		return nil, false
+	}
+	return client, true
+}
+
 func adminActorID(admin *models.AdminUser) *int64 {
 	if admin == nil {
 		return nil
 	}
 	return &admin.ID
+}
+
+func clientSessionKey(token string) string {
+	return "session:client:" + token
+}
+
+func (r *Runner) loadClientFromRequest(c *fiber.Ctx) (*models.Client, bool) {
+	if client, ok := currentClient(c); ok {
+		return client, true
+	}
+	token := c.Cookies(clientSessionCookieName)
+	if token == "" {
+		return nil, false
+	}
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+	clientID, err := r.redis.Get(ctx, clientSessionKey(token)).Int64()
+	if err != nil {
+		return nil, false
+	}
+	client, err := r.loadClientByID(c.UserContext(), clientID)
+	if err != nil || client == nil || client.Status == "disabled" {
+		return nil, false
+	}
+	return client, true
+}
+
+func (r *Runner) loadClientByID(ctx context.Context, id int64) (*models.Client, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, username, password_hash, display_name, email, status, traffic_limit_bytes, expiry_time, subscription_token, created_at, updated_at FROM clients WHERE id = ?`, id)
+	return scanClientRow(row)
+}
+
+func scanClientRow(scanner interface{ Scan(...any) error }) (*models.Client, error) {
+	var client models.Client
+	var displayName, email, subscriptionToken sql.NullString
+	var expiryTime sql.NullTime
+	if err := scanner.Scan(&client.ID, &client.Username, &client.PasswordHash, &displayName, &email, &client.Status, &client.TrafficLimitBytes, &expiryTime, &subscriptionToken, &client.CreatedAt, &client.UpdatedAt); err != nil {
+		return nil, err
+	}
+	client.DisplayName = displayName.String
+	client.Email = email.String
+	client.SubscriptionToken = subscriptionToken.String
+	if expiryTime.Valid {
+		t := expiryTime.Time
+		client.ExpiryTime = &t
+	}
+	return &client, nil
+}
+
+type clientSummary struct {
+	Client            *models.Client
+	UploadBytes       int64
+	DownloadBytes     int64
+	TotalBytes        int64
+	RemainingBytes    int64
+	ActiveConfigs     int
+	ExpiryText        string
+	RemainingText     string
+	StatusText        string
+	SubscriptionURL   string
+	RawSubscriptionURL string
+	Base64URL         string
+	ClashURL          string
+	SingboxURL        string
+	Configs           []clientConfigRow
+}
+
+type clientConfigRow struct {
+	PanelName     string
+	InboundRemark string
+	Protocol      string
+	Status        string
+	RawConfig     string
+	Enabled       bool
+	CopyValue     string
+}
+
+func (r *Runner) loadClientSummary(ctx context.Context, client *models.Client) (clientSummary, error) {
+	summary := clientSummary{Client: client}
+	if client == nil {
+		return summary, errors.New("client not found")
+	}
+	if client.ExpiryTime != nil {
+		summary.ExpiryText = formatTime(*client.ExpiryTime)
+		if client.ExpiryTime.Before(time.Now().UTC()) {
+			summary.StatusText = "expired"
+		} else {
+			summary.StatusText = "active"
+			summary.RemainingText = formatDuration(time.Until(*client.ExpiryTime))
+		}
+	} else {
+		summary.StatusText = "active"
+	}
+	row := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(upload_bytes),0), COALESCE(SUM(download_bytes),0), COUNT(*) FROM client_attachments WHERE client_id = ?`, client.ID)
+	if err := row.Scan(&summary.UploadBytes, &summary.DownloadBytes, &summary.ActiveConfigs); err != nil {
+		return summary, err
+	}
+	summary.TotalBytes = summary.UploadBytes + summary.DownloadBytes
+	if client.TrafficLimitBytes > 0 {
+		remaining := client.TrafficLimitBytes - summary.TotalBytes
+		if remaining < 0 {
+			remaining = 0
+		}
+		summary.RemainingBytes = remaining
+	}
+	if summary.StatusText != "expired" {
+		summary.Configs, _ = r.loadClientConfigs(ctx, client.ID)
+		summary.ActiveConfigs = len(summary.Configs)
+	} else {
+		summary.ActiveConfigs = 0
+	}
+	summary.SubscriptionURL = r.buildClientURL("/client/subscription")
+	summary.RawSubscriptionURL = summary.SubscriptionURL + "?format=raw"
+	summary.Base64URL = summary.SubscriptionURL + "?format=base64"
+	summary.ClashURL = summary.SubscriptionURL + "?format=clash"
+	summary.SingboxURL = summary.SubscriptionURL + "?format=singbox"
+	return summary, nil
+}
+
+func (r *Runner) loadClientConfigs(ctx context.Context, clientID int64) ([]clientConfigRow, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT COALESCE(p.name, ''), COALESCE(i.remark, ''), COALESCE(i.protocol, ''), ca.enabled, COALESCE(ca.raw_config, '') FROM client_attachments ca LEFT JOIN panels p ON p.id = ca.panel_id LEFT JOIN inbounds i ON i.id = ca.inbound_id WHERE ca.client_id = ? ORDER BY ca.id ASC`, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var configs []clientConfigRow
+	for rows.Next() {
+		var row clientConfigRow
+		var enabled int
+		if err := rows.Scan(&row.PanelName, &row.InboundRemark, &row.Protocol, &enabled, &row.RawConfig); err != nil {
+			return nil, err
+		}
+		row.Enabled = enabled != 0
+		if row.Enabled {
+			row.Status = "active"
+		} else {
+			row.Status = "disabled"
+		}
+		row.CopyValue = row.RawConfig
+		configs = append(configs, row)
+	}
+	return configs, rows.Err()
+}
+
+func (r *Runner) buildClientURL(path string) string {
+	return strings.TrimRight(r.cfg.AppBaseURL, "/") + path
 }
 
 func parseParamID(value string) (int64, error) {
@@ -631,4 +949,121 @@ func renderPasswordResetResultPage(username, password, appName string) string {
 
 func renderAdminUsersPageMessage(message, appName string) string {
 	return renderPage("Admin Users", `<main class="container py-5"><div class="alert alert-danger">` + html.EscapeString(message) + `</div><a class="btn btn-outline-secondary" href="/admin/users">Back to admin users</a></main>`)
+}
+
+func renderClientLoginPage(message, appName string) string {
+	alert := ""
+	if strings.TrimSpace(message) != "" {
+		alert = `<div class="alert alert-warning">` + html.EscapeString(message) + `</div>`
+	}
+	return renderPage("Client Login", `<main class="container py-5" style="max-width: 480px;"><div class="card shadow-sm"><div class="card-body p-4"><h1 class="h4 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-4">Client sign in</p>` + alert + `<form method="post" action="/client/login" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" autocomplete="username" required></div><div><label class="form-label" for="password">Password</label><input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required></div><button class="btn btn-primary w-100" type="submit">Sign in</button></form></div></div></main>`)
+}
+
+func renderClientDashboardPage(summary clientSummary, appName string) string {
+	statusBadge := "secondary"
+	if summary.StatusText == "active" {
+		statusBadge = "success"
+	} else if summary.StatusText == "expired" {
+		statusBadge = "warning"
+	}
+	remainingTraffic := "Unlimited"
+	if summary.Client.TrafficLimitBytes > 0 {
+		remainingTraffic = formatBytes(summary.RemainingBytes)
+	}
+	return renderPage("Client Dashboard", `<main class="container py-4 py-lg-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Welcome, ` + html.EscapeString(summary.Client.Username) + `</p></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary btn-sm" href="/client/profile">Profile</a><a class="btn btn-outline-secondary btn-sm" href="/client/configs">Configs</a><a class="btn btn-outline-secondary btn-sm" href="/client/subscription">Subscription</a><a class="btn btn-outline-secondary btn-sm" href="/client/usage">Usage</a><form method="post" action="/client/logout"><button class="btn btn-outline-danger btn-sm" type="submit">Logout</button></form></div></div><div class="row g-3"><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Account status</div><div class="fs-5 fw-semibold"><span class="badge text-bg-` + statusBadge + `">` + html.EscapeString(summary.StatusText) + `</span></div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Expiry</div><div class="fs-5 fw-semibold">` + html.EscapeString(defaultString(summary.ExpiryText, "No expiry")) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Traffic used</div><div class="fs-5 fw-semibold">` + html.EscapeString(formatBytes(summary.TotalBytes)) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Remaining traffic</div><div class="fs-5 fw-semibold">` + html.EscapeString(remainingTraffic) + `</div></div></div></div></div><div class="card"><div class="card-body d-flex flex-column gap-2"><div class="text-body-secondary small">Subscription link</div><div class="input-group"><input class="form-control" value="` + html.EscapeString(summary.SubscriptionURL) + `" readonly><button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copy</button></div></div></div></div></main>`)
+}
+
+func renderClientProfilePage(client *models.Client, appName string, messages []string) string {
+	var alert strings.Builder
+	for _, msg := range messages {
+		alert.WriteString(`<div class="alert alert-info">` + html.EscapeString(msg) + `</div>`)
+	}
+	return renderPage("Client Profile", `<main class="container py-4 py-lg-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Profile for ` + html.EscapeString(client.Username) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/client">Back</a></div>` + alert.String() + `<div class="row g-3"><div class="col-12 col-lg-5"><div class="card h-100"><div class="card-body vstack gap-2"><div><div class="text-body-secondary small">Username</div><div class="fw-semibold">` + html.EscapeString(client.Username) + `</div></div><div><div class="text-body-secondary small">Display name</div><div class="fw-semibold">` + html.EscapeString(client.DisplayName) + `</div></div><div><div class="text-body-secondary small">Email</div><div class="fw-semibold">` + html.EscapeString(client.Email) + `</div></div></div></div></div><div class="col-12 col-lg-7"><div class="card h-100"><div class="card-body"><form method="post" action="/client/profile/password" class="vstack gap-3"><div><label class="form-label" for="current_password">Current password</label><input class="form-control" id="current_password" name="current_password" type="password" required></div><div><label class="form-label" for="new_password">New password</label><input class="form-control" id="new_password" name="new_password" type="password" minlength="12" required></div><div><label class="form-label" for="confirm_password">Confirm password</label><input class="form-control" id="confirm_password" name="confirm_password" type="password" minlength="12" required></div><button class="btn btn-primary" type="submit">Update password</button></form></div></div></div></div></main>`)
+}
+
+func renderClientConfigsPage(client *models.Client, configs []clientConfigRow, appName string) string {
+	var rows strings.Builder
+	for _, cfg := range configs {
+		copyValue := html.EscapeString(cfg.CopyValue)
+		rows.WriteString(`<div class="col-12 col-lg-6"><div class="card h-100"><div class="card-body"><div class="d-flex justify-content-between gap-2"><div><div class="fw-semibold">` + html.EscapeString(cfg.PanelName) + `</div><div class="text-body-secondary small">` + html.EscapeString(cfg.InboundRemark) + `</div></div><span class="badge text-bg-` + mapStatusBadge(cfg.Status) + `">` + html.EscapeString(cfg.Status) + `</span></div><div class="mt-3"><div class="small text-body-secondary mb-1">Protocol</div><div>` + html.EscapeString(cfg.Protocol) + `</div></div><div class="mt-3"><textarea class="form-control" rows="4" readonly>` + copyValue + `</textarea></div><div class="mt-3 d-flex gap-2 flex-wrap"><button class="btn btn-outline-secondary btn-sm" type="button" onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.value)">Copy</button><div class="border rounded d-flex align-items-center justify-content-center text-body-secondary small" style="min-width:120px;min-height:120px;">QR</div></div></div></div></div>`)
+	}
+	if rows.Len() == 0 {
+		rows.WriteString(`<div class="col-12"><div class="alert alert-warning mb-0">No active configs found.</div></div>`)
+	}
+	return renderPage("Client Configs", `<main class="container py-4 py-lg-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Configs for ` + html.EscapeString(client.Username) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/client">Back</a></div><div class="row g-3">` + rows.String() + `</div></div></main>`)
+}
+
+func renderClientSubscriptionPage(summary clientSummary, appName string) string {
+	return renderPage("Client Subscription", `<main class="container py-4 py-lg-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Subscription links for ` + html.EscapeString(summary.Client.Username) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/client">Back</a></div><div class="row g-3"><div class="col-12"><div class="card"><div class="card-body vstack gap-3"><div><div class="text-body-secondary small">Main subscription URL</div><div class="input-group"><input class="form-control" value="` + html.EscapeString(summary.SubscriptionURL) + `" readonly><button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copy</button></div></div><div><div class="text-body-secondary small">Raw subscription URL</div><code class="d-block p-2 bg-body-tertiary rounded">` + html.EscapeString(summary.RawSubscriptionURL) + `</code></div><div><div class="text-body-secondary small">Base64 subscription URL</div><code class="d-block p-2 bg-body-tertiary rounded">` + html.EscapeString(summary.Base64URL) + `</code></div><div><div class="text-body-secondary small">Clash URL placeholder</div><code class="d-block p-2 bg-body-tertiary rounded">` + html.EscapeString(summary.ClashURL) + `</code></div><div><div class="text-body-secondary small">Sing-box URL placeholder</div><code class="d-block p-2 bg-body-tertiary rounded">` + html.EscapeString(summary.SingboxURL) + `</code></div></div></div></div></div></main>`)
+}
+
+func renderClientUsagePage(summary clientSummary, appName string) string {
+	return renderPage("Client Usage", `<main class="container py-4 py-lg-5"><div class="d-flex flex-column gap-3"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap"><div><h1 class="h3 mb-1">` + html.EscapeString(appName) + `</h1><p class="text-body-secondary mb-0">Usage for ` + html.EscapeString(summary.Client.Username) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/client">Back</a></div><div class="row g-3"><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Upload</div><div class="fs-5 fw-semibold">` + html.EscapeString(formatBytes(summary.UploadBytes)) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Download</div><div class="fs-5 fw-semibold">` + html.EscapeString(formatBytes(summary.DownloadBytes)) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Total</div><div class="fs-5 fw-semibold">` + html.EscapeString(formatBytes(summary.TotalBytes)) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Limit</div><div class="fs-5 fw-semibold">` + html.EscapeString(formatLimit(summary.Client.TrafficLimitBytes)) + `</div></div></div></div></div><div class="card"><div class="card-body"><div class="text-body-secondary small">Remaining traffic</div><div class="fs-5 fw-semibold">` + html.EscapeString(formatRemainingTraffic(summary)) + `</div></div></div></div></main>`)
+}
+
+func renderClientPortalLayout(title, appName, body string) string {
+	return renderPage(title, body)
+}
+
+func formatBytes(value int64) string {
+	const unit = 1024
+	if value < unit {
+		return strconv.FormatInt(value, 10) + " B"
+	}
+	d := float64(value)
+	for _, suffix := range []string{"KiB", "MiB", "GiB", "TiB"} {
+		d /= unit
+		if d < unit {
+			return fmt.Sprintf("%.1f %s", d, suffix)
+		}
+	}
+	return fmt.Sprintf("%.1f PiB", d/unit)
+}
+
+func formatLimit(value int64) string {
+	if value <= 0 {
+		return "Unlimited"
+	}
+	return formatBytes(value)
+}
+
+func formatRemainingTraffic(summary clientSummary) string {
+	if summary.Client.TrafficLimitBytes <= 0 {
+		return "Unlimited"
+	}
+	return formatBytes(summary.RemainingBytes)
+}
+
+func formatDuration(d time.Duration) string {
+	if d <= 0 {
+		return "expired"
+	}
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	if days > 0 {
+		return fmt.Sprintf("%d days %d hours", days, hours)
+	}
+	return fmt.Sprintf("%d hours", hours)
+}
+
+func formatTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func mapStatusBadge(status string) string {
+	switch strings.ToLower(status) {
+	case "active":
+		return "success"
+	case "disabled":
+		return "secondary"
+	default:
+		return "primary"
+	}
 }

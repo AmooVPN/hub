@@ -953,14 +953,14 @@ GET  /client
 
 Tasks:
 
-* [ ] Create client login page.
-* [ ] Create client logout action.
-* [ ] Add client session middleware.
-* [ ] Protect `/client/*`.
-* [ ] Redirect unauthenticated clients to `/client/login`.
-* [ ] Rate-limit client login.
-* [ ] Block disabled clients.
-* [ ] Allow expired clients to log in but show expired status.
+* [x] Create client login page.
+* [x] Create client logout action.
+* [x] Add client session middleware.
+* [x] Protect `/client/*`.
+* [x] Redirect unauthenticated clients to `/client/login`.
+* [x] Rate-limit client login.
+* [x] Block disabled clients.
+* [x] Allow expired clients to log in but show expired status.
 
 Acceptance criteria:
 
@@ -1050,16 +1050,16 @@ Show:
 
 Tasks:
 
-* [ ] Create client layout.
-* [ ] Create client dashboard.
-* [ ] Create client profile page.
-* [ ] Create password change flow.
-* [ ] Create configs page.
-* [ ] Create subscription page.
-* [ ] Create usage page.
-* [ ] Add copy buttons.
-* [ ] Add QR codes.
-* [ ] Add mobile responsive cards.
+* [x] Create client layout.
+* [x] Create client dashboard.
+* [x] Create client profile page.
+* [x] Create password change flow.
+* [x] Create configs page.
+* [x] Create subscription page.
+* [x] Create usage page.
+* [x] Add copy buttons.
+* [x] Add QR codes.
+* [x] Add mobile responsive cards.
 
 Acceptance criteria:
 
