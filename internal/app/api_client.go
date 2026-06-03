@@ -38,21 +38,21 @@ type clientAPIAuthResponse struct {
 }
 
 type clientAPIMeResponse struct {
-	Client            models.ClientDTO `json:"client"`
-	Status            string           `json:"status"`
-	ExpiryTime        string           `json:"expiry_time,omitempty"`
-	RemainingTime     string           `json:"remaining_time,omitempty"`
-	TrafficLimitBytes int64            `json:"traffic_limit_bytes"`
-	UploadBytes       int64            `json:"upload_bytes"`
-	DownloadBytes     int64            `json:"download_bytes"`
-	TotalBytes        int64            `json:"total_bytes"`
-	RemainingBytes    int64            `json:"remaining_bytes"`
-	ActiveConfigs     int              `json:"active_configs"`
-	SubscriptionURL   string           `json:"subscription_url"`
-	RawSubscriptionURL string          `json:"raw_subscription_url"`
-	Base64URL         string           `json:"base64_subscription_url"`
-	ClashURL          string           `json:"clash_url"`
-	SingboxURL        string           `json:"singbox_url"`
+	Client             models.ClientDTO `json:"client"`
+	Status             string           `json:"status"`
+	ExpiryTime         string           `json:"expiry_time,omitempty"`
+	RemainingTime      string           `json:"remaining_time,omitempty"`
+	TrafficLimitBytes  int64            `json:"traffic_limit_bytes"`
+	UploadBytes        int64            `json:"upload_bytes"`
+	DownloadBytes      int64            `json:"download_bytes"`
+	TotalBytes         int64            `json:"total_bytes"`
+	RemainingBytes     int64            `json:"remaining_bytes"`
+	ActiveConfigs      int              `json:"active_configs"`
+	SubscriptionURL    string           `json:"subscription_url"`
+	RawSubscriptionURL string           `json:"raw_subscription_url"`
+	Base64URL          string           `json:"base64_subscription_url"`
+	ClashURL           string           `json:"clash_url"`
+	SingboxURL         string           `json:"singbox_url"`
 }
 
 type clientAPISubscriptionResponse struct {
@@ -75,23 +75,23 @@ type clientAPIConfigsResponse struct {
 }
 
 type clientAPIUsageResponse struct {
-	UploadBytes         int64 `json:"upload_bytes"`
-	DownloadBytes       int64 `json:"download_bytes"`
-	TotalBytes          int64 `json:"total_bytes"`
-	TrafficLimitBytes   int64 `json:"traffic_limit_bytes"`
+	UploadBytes           int64 `json:"upload_bytes"`
+	DownloadBytes         int64 `json:"download_bytes"`
+	TotalBytes            int64 `json:"total_bytes"`
+	TrafficLimitBytes     int64 `json:"traffic_limit_bytes"`
 	RemainingTrafficBytes int64 `json:"remaining_traffic_bytes"`
 }
 
 type clientAPIStatusResponse struct {
-	Status            string `json:"status"`
-	IsActive          bool   `json:"is_active"`
-	IsExpired         bool   `json:"is_expired"`
-	ExpiryTime        string `json:"expiry_time,omitempty"`
-	RemainingSeconds  int64  `json:"remaining_seconds"`
-	RemainingDays     int64  `json:"remaining_days"`
-	TrafficLimitBytes int64  `json:"traffic_limit_bytes"`
-	UsedTrafficBytes  int64  `json:"used_traffic_bytes"`
-	RemainingTrafficBytes int64 `json:"remaining_traffic_bytes"`
+	Status                string `json:"status"`
+	IsActive              bool   `json:"is_active"`
+	IsExpired             bool   `json:"is_expired"`
+	ExpiryTime            string `json:"expiry_time,omitempty"`
+	RemainingSeconds      int64  `json:"remaining_seconds"`
+	RemainingDays         int64  `json:"remaining_days"`
+	TrafficLimitBytes     int64  `json:"traffic_limit_bytes"`
+	UsedTrafficBytes      int64  `json:"used_traffic_bytes"`
+	RemainingTrafficBytes int64  `json:"remaining_traffic_bytes"`
 }
 
 func (r *Runner) postClientAPILogin(c *fiber.Ctx) error {
@@ -209,6 +209,9 @@ func (r *Runner) getClientAPIMe(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getClientAPISubscription(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	client, ok := currentClient(c)
 	if !ok {
 		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "Authorization required")

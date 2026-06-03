@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/AmooVPM/hub/internal/models"
 )
 
 func (r *Runner) startAutomaticBackups() {
@@ -23,6 +25,15 @@ func (r *Runner) startAutomaticBackups() {
 		defer ticker.Stop()
 		ctx := context.Background()
 		for range ticker.C {
+			if r.backgroundJobs != nil {
+				_, err := r.backgroundJobs.Submit(ctx, models.JobTypeBackupExport, nil, 0, func(jobCtx context.Context) error {
+					return r.runAutomaticBackup(jobCtx)
+				})
+				if err != nil && r.logger != nil {
+					r.logger.Warn("automatic backup enqueue failed", "error", err)
+				}
+				continue
+			}
 			if err := r.runAutomaticBackup(ctx); err != nil && r.logger != nil {
 				r.logger.Warn("automatic backup failed", "error", err)
 			}

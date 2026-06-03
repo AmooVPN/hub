@@ -15,22 +15,23 @@ import (
 )
 
 type dashboardSummary struct {
-	TotalPanels     int64
-	OnlinePanels    int64
-	OfflinePanels   int64
-	TotalInbounds   int64
-	TotalClients    int64
-	ActiveClients   int64
-	DisabledClients int64
-	ExpiredClients  int64
-	TotalTraffic    int64
-	RunningSyncJobs int64
-	BackupCount     int64
-	LastBackupAt    *time.Time
-	SystemHealth    systemHealthSnapshot
-	RecentSyncJobs  []dashboardSyncJob
-	RecentAudits    []models.AuditLog
-	RecentErrors    []dashboardError
+	TotalPanels      int64
+	OnlinePanels     int64
+	OfflinePanels    int64
+	TotalInbounds    int64
+	TotalClients     int64
+	ActiveClients    int64
+	DisabledClients  int64
+	ExpiredClients   int64
+	TotalTraffic     int64
+	RunningSyncJobs  int64
+	BackupCount      int64
+	LastBackupAt     *time.Time
+	LatestPanelCheck *time.Time
+	SystemHealth     systemHealthSnapshot
+	RecentSyncJobs   []dashboardSyncJob
+	RecentAudits     []models.AuditLog
+	RecentErrors     []dashboardError
 }
 
 type dashboardSyncJob struct {
@@ -116,6 +117,14 @@ func (r *Runner) loadDashboardSummary(ctx context.Context) (dashboardSummary, er
 			summary.LastBackupAt = &latest
 		}
 	}
+	var latestPanelCheck sql.NullTime
+	if err := r.db.QueryRowContext(ctx, `SELECT MAX(last_checked_at) FROM panels WHERE last_checked_at IS NOT NULL`).Scan(&latestPanelCheck); err != nil {
+		return summary, err
+	}
+	if latestPanelCheck.Valid {
+		t := latestPanelCheck.Time
+		summary.LatestPanelCheck = &t
+	}
 	if err := r.loadRecentErrors(ctx, &summary); err != nil {
 		return summary, err
 	}
@@ -187,7 +196,11 @@ func renderDashboardMonitoring(summary dashboardSummary) string {
 	if summary.LastBackupAt != nil {
 		backupTime = summary.LastBackupAt.UTC().Format(time.RFC3339)
 	}
-	return `<div class="row g-3"><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">SQLite</div><div class="fw-semibold text-` + monitorTone(summary.SystemHealth.SQLite) + `">` + html.EscapeString(summary.SystemHealth.SQLite) + `</div><div class="text-body-secondary small mt-2">Migrations: ` + html.EscapeString(summary.SystemHealth.Migrations) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Redis</div><div class="fw-semibold text-` + monitorTone(summary.SystemHealth.Redis) + `">` + html.EscapeString(summary.SystemHealth.Redis) + `</div><div class="text-body-secondary small mt-2">App health: ` + html.EscapeString(summary.SystemHealth.Status) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Backups</div><div class="fs-5 fw-semibold">` + html.EscapeString(fmt.Sprintf("%d", summary.BackupCount)) + `</div><div class="text-body-secondary small mt-2">Latest: ` + html.EscapeString(backupTime) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Version</div><div class="fs-5 fw-semibold">0.1.0</div><div class="text-body-secondary small mt-2">` + html.EscapeString(summary.SystemHealth.Time.Format(time.RFC3339)) + `</div></div></div></div></div>`
+	panelCheck := "No panel checks"
+	if summary.LatestPanelCheck != nil {
+		panelCheck = summary.LatestPanelCheck.UTC().Format(time.RFC3339)
+	}
+	return `<div class="row g-3"><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">SQLite</div><div class="fw-semibold text-` + monitorTone(summary.SystemHealth.SQLite) + `">` + html.EscapeString(summary.SystemHealth.SQLite) + `</div><div class="text-body-secondary small mt-2">Migrations: ` + html.EscapeString(summary.SystemHealth.Migrations) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Redis</div><div class="fw-semibold text-` + monitorTone(summary.SystemHealth.Redis) + `">` + html.EscapeString(summary.SystemHealth.Redis) + `</div><div class="text-body-secondary small mt-2">App health: ` + html.EscapeString(summary.SystemHealth.Status) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Backups</div><div class="fs-5 fw-semibold">` + html.EscapeString(fmt.Sprintf("%d", summary.BackupCount)) + `</div><div class="text-body-secondary small mt-2">Latest: ` + html.EscapeString(backupTime) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Panel checks</div><div class="fs-5 fw-semibold">` + html.EscapeString(panelCheck) + `</div><div class="text-body-secondary small mt-2">Version: 0.1.0</div></div></div></div></div>`
 }
 
 func monitorTone(value string) string {

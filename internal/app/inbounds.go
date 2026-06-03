@@ -155,7 +155,7 @@ func (r *Runner) syncPanelInbounds(ctx context.Context, panel *models.Panel) err
 		return errors.New("panel is nil")
 	}
 	return r.withPanelSyncLock(ctx, panel.ID, func() error {
-		jobID, err := r.startSyncJob(ctx, &panel.ID, "inbound_sync")
+		jobID, err := r.startSyncJob(ctx, &panel.ID, models.JobTypeInboundSync)
 		if err != nil {
 			return err
 		}

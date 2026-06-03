@@ -27,6 +27,8 @@ type Config struct {
 	BackupRetentionDays     int
 	AutomaticBackupEnabled  bool
 	AutomaticBackupSchedule string
+	MetricsEnabled          bool
+	MetricsToken            string
 	MaxUploadSizeMB         int
 	InitialAdminUsername    string
 	InitialAdminPassword    string
@@ -49,6 +51,7 @@ func Load() (*Config, error) {
 		BackupRetentionCount:    20,
 		BackupRetentionDays:     30,
 		AutomaticBackupSchedule: getEnv("AUTOMATIC_BACKUP_SCHEDULE", "daily"),
+		MetricsToken:            os.Getenv("METRICS_TOKEN"),
 		InitialAdminUsername:    getEnv("INITIAL_ADMIN_USERNAME", "admin"),
 		InitialAdminPassword:    getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
 		InitialAdminEmail:       os.Getenv("INITIAL_ADMIN_EMAIL"),
@@ -78,6 +81,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if c.AutomaticBackupEnabled, err = parseBoolEnv("AUTOMATIC_BACKUP_ENABLED", false); err != nil {
+		return nil, err
+	}
+	if c.MetricsEnabled, err = parseBoolEnv("METRICS_ENABLED", false); err != nil {
 		return nil, err
 	}
 	if !isValidBackupSchedule(c.AutomaticBackupSchedule) {

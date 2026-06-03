@@ -16,10 +16,10 @@ type Migration struct {
 }
 
 var migrations = []Migration{
-		{
-			Version: 1,
-			Name:    "initial_schema",
-			SQL: []string{
+	{
+		Version: 1,
+		Name:    "initial_schema",
+		SQL: []string{
 			`CREATE TABLE IF NOT EXISTS schema_migrations (
 				version INTEGER PRIMARY KEY,
 				applied_at DATETIME NOT NULL
@@ -161,6 +161,13 @@ var migrations = []Migration{
 		Name:    "add_sync_job_retry_count",
 		SQL: []string{
 			`ALTER TABLE sync_jobs ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;`,
+		},
+	},
+	{
+		Version: 5,
+		Name:    "add_panel_last_checked_at",
+		SQL: []string{
+			`ALTER TABLE panels ADD COLUMN last_checked_at DATETIME;`,
 		},
 	},
 }

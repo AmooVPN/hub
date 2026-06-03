@@ -3221,10 +3221,10 @@ hub_backup_imports_total
 
 Tasks:
 
-* [ ] Add metrics middleware.
-* [ ] Add Prometheus endpoint.
-* [ ] Add config flag to enable/disable metrics.
-* [ ] Protect metrics endpoint optionally.
+* [x] Add metrics middleware.
+* [x] Add Prometheus endpoint.
+* [x] Add config flag to enable/disable metrics.
+* [x] Protect metrics endpoint optionally.
 
 ---
 
@@ -3243,13 +3243,13 @@ error
 
 Tasks:
 
-* [ ] Add manual health check.
+* [x] Add manual health check.
 * [ ] Add scheduled health check later.
-* [ ] Update panel status.
-* [ ] Store last error.
-* [ ] Store last checked time.
-* [ ] Show on dashboard.
-* [ ] Show on panel list.
+* [x] Update panel status.
+* [x] Store last error.
+* [x] Store last checked time.
+* [x] Show on dashboard.
+* [x] Show on panel list.
 
 Health check should verify:
 
@@ -3327,15 +3327,15 @@ retrying
 
 Tasks:
 
-* [ ] Create job constants.
-* [ ] Create job runner.
-* [ ] Create job repository.
-* [ ] Create worker pool.
-* [ ] Store started_at.
-* [ ] Store finished_at.
-* [ ] Store error message.
-* [ ] Store retry count.
-* [ ] Show jobs in admin UI.
+* [x] Create job constants.
+* [x] Create job runner.
+* [x] Create job repository.
+* [x] Create worker pool.
+* [x] Store started_at.
+* [x] Store finished_at.
+* [x] Store error message.
+* [x] Store retry count.
+* [x] Show jobs in admin UI.
 
 ---
 

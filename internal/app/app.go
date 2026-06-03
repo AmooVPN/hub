@@ -26,21 +26,23 @@ import (
 )
 
 type Runner struct {
-	cfg         *config.Config
-	db          *sql.DB
-	redis       *redis.Client
-	admins      repositories.AdminRepository
-	clients     repositories.ClientRepository
-	refreshes   repositories.RefreshTokenRepository
-	panels      repositories.PanelRepository
-	inbounds    repositories.InboundRepository
-	jobs        *services.JobService
-	panelHealth *services.HealthService
-	backups     *services.BackupService
-	audit       repositories.AuditRepository
-	logger      *slog.Logger
-	loginLocks  *attemptTracker
-	server      *fiber.App
+	cfg            *config.Config
+	db             *sql.DB
+	redis          *redis.Client
+	admins         repositories.AdminRepository
+	clients        repositories.ClientRepository
+	refreshes      repositories.RefreshTokenRepository
+	panels         repositories.PanelRepository
+	inbounds       repositories.InboundRepository
+	jobs           *services.JobService
+	backgroundJobs *services.BackgroundJobRunner
+	metrics        *services.MetricsCollector
+	panelHealth    *services.HealthService
+	backups        *services.BackupService
+	audit          repositories.AuditRepository
+	logger         *slog.Logger
+	loginLocks     *attemptTracker
+	server         *fiber.App
 }
 
 const clientSessionCookieName = "hub_client_session"
@@ -93,22 +95,25 @@ func New(logger *slog.Logger) (*Runner, error) {
 	}
 
 	runner := &Runner{
-		cfg:         cfg,
-		db:          db,
-		redis:       rdb,
-		admins:      admins,
-		clients:     clients,
-		refreshes:   refreshes,
-		panels:      panels,
-		inbounds:    inbounds,
-		jobs:        services.NewJobService(syncJobs),
-		panelHealth: services.NewHealthService(services.NewXUIHealthProbe(cfg.AppName, cfg.HUBSecretKey)),
-		backups:     services.NewBackupService(),
-		audit:       audit,
-		logger:      logger,
-		loginLocks:  newAttemptTracker(5, 15*time.Minute),
+		cfg:            cfg,
+		db:             db,
+		redis:          rdb,
+		admins:         admins,
+		clients:        clients,
+		refreshes:      refreshes,
+		panels:         panels,
+		inbounds:       inbounds,
+		jobs:           services.NewJobService(syncJobs),
+		backgroundJobs: services.NewBackgroundJobRunner(syncJobs, 2),
+		metrics:        services.NewMetricsCollector(),
+		panelHealth:    services.NewHealthService(services.NewXUIHealthProbe(cfg.AppName, cfg.HUBSecretKey)),
+		backups:        services.NewBackupService(),
+		audit:          audit,
+		logger:         logger,
+		loginLocks:     newAttemptTracker(5, 15*time.Minute),
 	}
 	runner.server = runner.buildServer()
+	runner.backgroundJobs.Start(context.Background())
 	runner.startAutomaticBackups()
 	return runner, nil
 }
@@ -131,11 +136,15 @@ func (r *Runner) buildServer() *fiber.App {
 	})
 
 	app.Use(recover.New())
+	if r.cfg.MetricsEnabled && r.metrics != nil {
+		app.Use(r.metricsMiddleware())
+	}
 	app.Get("/", r.home)
 	app.Get("/health", r.getHealth)
 	app.Get("/health/live", r.getHealthLive)
 	app.Get("/health/ready", r.getHealthReady)
 	app.Get("/healthz", r.getHealthLive)
+	app.Get("/metrics", r.getMetrics)
 	app.Get("/admin/login", r.getAdminLogin)
 	app.Post("/admin/login", r.postAdminLogin)
 	app.Post("/admin/logout", r.postAdminLogout)
@@ -665,6 +674,9 @@ func (r *Runner) getClientConfigs(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getClientSubscription(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	client, ok := currentClient(c)
 	if !ok {
 		return c.Redirect("/client/login", fiber.StatusFound)
@@ -677,22 +689,37 @@ func (r *Runner) getClientSubscription(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getPublicSubscription(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	return r.servePublicSubscription(c, "base64")
 }
 
 func (r *Runner) getPublicSubscriptionRaw(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	return r.servePublicSubscription(c, "raw")
 }
 
 func (r *Runner) getPublicSubscriptionBase64(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	return r.servePublicSubscription(c, "base64")
 }
 
 func (r *Runner) getPublicSubscriptionClash(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	return r.servePublicSubscription(c, "clash")
 }
 
 func (r *Runner) getPublicSubscriptionSingbox(c *fiber.Ctx) error {
+	if r.metrics != nil {
+		r.metrics.IncSubscriptionRequest()
+	}
 	return r.servePublicSubscription(c, "singbox")
 }
 

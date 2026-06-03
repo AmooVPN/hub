@@ -83,6 +83,7 @@ type Panel struct {
 	Version           string     `json:"version,omitempty"`
 	Status            string     `json:"status"`
 	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
+	LastCheckedAt     *time.Time `json:"last_checked_at,omitempty"`
 	LastError         string     `json:"last_error,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

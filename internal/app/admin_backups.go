@@ -44,6 +44,9 @@ func (r *Runner) getAdminBackupsExport(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	if r.metrics != nil {
+		r.metrics.IncBackupExport()
+	}
 	if deleted, cleanupErr := r.backups.CleanupOldBackups(r.cfg.BackupDir, r.cfg.BackupRetentionCount, r.cfg.BackupRetentionDays, rec.Name); cleanupErr != nil {
 		if r.logger != nil {
 			r.logger.Warn("backup retention cleanup failed", "error", cleanupErr)
@@ -129,6 +132,9 @@ func (r *Runner) postAdminBackupsImport(c *fiber.Ctx) error {
 			return listErr
 		}
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminBackupsPageWithAlert(items, admin.Role, r.cfg.AppName, r.cfg.BackupDir, err.Error(), "danger"))
+	}
+	if r.metrics != nil {
+		r.metrics.IncBackupImport()
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "backup_import_prepare", "backup", nil, map[string]any{"filename": file.Filename, "app": result.Metadata.App, "schema_version": result.Metadata.SchemaVersion, "safety_backup": result.SafetyBackup.Name, "staged_file": result.StagedName})
 	items, err := r.backups.List(r.cfg.BackupDir)

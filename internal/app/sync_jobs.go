@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"html"
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"time"
@@ -16,13 +16,13 @@ import (
 )
 
 type syncJobListRow struct {
-	ID        int64
-	PanelName string
-	JobType   string
-	Status    string
-	Message   string
+	ID         int64
+	PanelName  string
+	JobType    string
+	Status     string
+	Message    string
 	RetryCount int64
-	When      time.Time
+	When       time.Time
 }
 
 type syncJobRetryKey struct{}
@@ -82,7 +82,7 @@ func (r *Runner) postAdminSyncJobRetry(c *fiber.Ctx) error {
 	if !strings.EqualFold(job.Status, models.SyncJobStatusFailed) {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderSyncJobsMessagePage("Only failed jobs can be retried.", r.cfg.AppName, admin.Role))
 	}
-	if job.JobType != "traffic_sync" && job.PanelID == nil {
+	if job.JobType != models.JobTypeTrafficSync && job.PanelID == nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderSyncJobsMessagePage("This job cannot be retried safely.", r.cfg.AppName, admin.Role))
 	}
 	if err := r.retrySyncJob(c.UserContext(), job); err != nil {
@@ -170,7 +170,7 @@ func (r *Runner) retrySyncJob(ctx context.Context, job *models.SyncJob) error {
 	}
 	now := time.Now().UTC()
 	switch job.JobType {
-	case "panel_sync", "inbound_sync":
+	case models.JobTypePanelSync, models.JobTypeInboundSync:
 		if job.PanelID == nil {
 			return errors.New("job is missing panel reference")
 		}
@@ -185,7 +185,7 @@ func (r *Runner) retrySyncJob(ctx context.Context, job *models.SyncJob) error {
 			return err
 		}
 		return r.syncPanelInbounds(ctx, panel)
-	case "traffic_sync":
+	case models.JobTypeTrafficSync:
 		if job.PanelID == nil {
 			ctx = withSyncJobRetryCount(ctx, job.RetryCount+1)
 			_, err := r.syncAllTraffic(ctx)

@@ -52,7 +52,7 @@ func (r *Runner) syncPanelTraffic(ctx context.Context, panel *models.Panel) erro
 	if panel == nil {
 		return errors.New("panel is nil")
 	}
-	jobID, err := r.startSyncJob(ctx, &panel.ID, "traffic_sync")
+	jobID, err := r.startSyncJob(ctx, &panel.ID, models.JobTypeTrafficSync)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (r *Runner) syncClientTraffic(ctx context.Context, client *models.Client) (
 	if client == nil {
 		return nil, errors.New("client is nil")
 	}
-	jobID, err := r.startSyncJob(ctx, nil, "traffic_sync")
+	jobID, err := r.startSyncJob(ctx, nil, models.JobTypeTrafficSync)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (r *Runner) syncTrafficForAttachments(ctx context.Context, panelID, clientI
 }
 
 func (r *Runner) syncAllTraffic(ctx context.Context) (*trafficSyncReport, error) {
-	jobID, err := r.startSyncJob(ctx, nil, "traffic_sync")
+	jobID, err := r.startSyncJob(ctx, nil, models.JobTypeTrafficSync)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +221,9 @@ func (r *Runner) loadTrafficSyncAttachments(ctx context.Context, panelID, client
 }
 
 func (r *Runner) startSyncJob(ctx context.Context, panelID *int64, jobType string) (int64, error) {
+	if !models.IsValidJobType(jobType) {
+		return 0, fmt.Errorf("invalid job type %q", jobType)
+	}
 	return r.jobs.Start(ctx, panelID, jobType, syncJobRetryCountFromContext(ctx))
 }
 

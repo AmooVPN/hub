@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -127,7 +127,9 @@ func (r *Runner) loadSubscriptionCacheMeta(ctx context.Context, token string) (t
 	if err != nil {
 		return time.Time{}, false
 	}
-	var meta struct{ CachedAt string `json:"cached_at"` }
+	var meta struct {
+		CachedAt string `json:"cached_at"`
+	}
 	if err := json.Unmarshal([]byte(value), &meta); err != nil || meta.CachedAt == "" {
 		return time.Time{}, false
 	}

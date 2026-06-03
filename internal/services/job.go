@@ -23,12 +23,15 @@ func (s *JobService) Start(ctx context.Context, panelID *int64, jobType string, 
 	if s == nil || s.repo == nil {
 		return 0, errors.New("job service is not configured")
 	}
+	if !models.IsValidJobType(jobType) {
+		return 0, errors.New("invalid job type")
+	}
 	job := &models.SyncJob{
-		PanelID:   panelID,
-		JobType:   jobType,
-		Status:    models.SyncJobStatusRunning,
+		PanelID:    panelID,
+		JobType:    jobType,
+		Status:     models.SyncJobStatusRunning,
 		RetryCount: retryCount,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt:  time.Now().UTC(),
 	}
 	job.StartedAt = &job.CreatedAt
 	if err := s.repo.Create(ctx, job); err != nil {
