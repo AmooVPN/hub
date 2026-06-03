@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/AmooVPM/hub/internal/models"
@@ -38,6 +39,15 @@ type PanelRepository interface {
 	Delete(context.Context, int64) error
 }
 
+type InboundRepository interface {
+	Upsert(context.Context, *models.Inbound) error
+	MarkStaleByPanel(context.Context, int64, []int64) error
+	List(context.Context) ([]models.Inbound, error)
+	ListByPanel(context.Context, int64) ([]models.Inbound, error)
+	FindByID(context.Context, int64) (*models.Inbound, error)
+	TouchSyncedAt(context.Context, int64, time.Time) error
+}
+
 type AuditRepository interface {
 	Create(context.Context, *models.AuditLog) error
 	ListRecent(context.Context, int) ([]models.AuditLog, error)
@@ -54,12 +64,16 @@ type sqliteClientRepository struct{ db *sql.DB }
 type sqlitePanelRepository struct{ db *sql.DB }
 type sqliteAuditRepository struct{ db *sql.DB }
 type sqliteRefreshTokenRepository struct{ db *sql.DB }
+type sqliteInboundRepository struct{ db *sql.DB }
 
-func NewAdminRepository(db *sql.DB) AdminRepository { return &sqliteAdminRepository{db: db} }
+func NewAdminRepository(db *sql.DB) AdminRepository   { return &sqliteAdminRepository{db: db} }
 func NewClientRepository(db *sql.DB) ClientRepository { return &sqliteClientRepository{db: db} }
-func NewPanelRepository(db *sql.DB) PanelRepository { return &sqlitePanelRepository{db: db} }
-func NewAuditRepository(db *sql.DB) AuditRepository { return &sqliteAuditRepository{db: db} }
-func NewRefreshTokenRepository(db *sql.DB) RefreshTokenRepository { return &sqliteRefreshTokenRepository{db: db} }
+func NewPanelRepository(db *sql.DB) PanelRepository   { return &sqlitePanelRepository{db: db} }
+func NewAuditRepository(db *sql.DB) AuditRepository   { return &sqliteAuditRepository{db: db} }
+func NewRefreshTokenRepository(db *sql.DB) RefreshTokenRepository {
+	return &sqliteRefreshTokenRepository{db: db}
+}
+func NewInboundRepository(db *sql.DB) InboundRepository { return &sqliteInboundRepository{db: db} }
 
 func (r *sqliteAdminRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
@@ -342,6 +356,100 @@ func (r *sqliteAuditRepository) ListRecent(ctx context.Context, limit int) ([]mo
 		items = append(items, audit)
 	}
 	return items, rows.Err()
+}
+
+func (r *sqliteInboundRepository) Upsert(ctx context.Context, inbound *models.Inbound) error {
+	if inbound == nil {
+		return errors.New("inbound is nil")
+	}
+	if inbound.CreatedAt.IsZero() {
+		inbound.CreatedAt = time.Now().UTC()
+	}
+	if inbound.UpdatedAt.IsZero() {
+		inbound.UpdatedAt = inbound.CreatedAt
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO inbounds (panel_id, remote_inbound_id, remark, protocol, port, network, security, enabled, stale, raw_json, last_synced_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(panel_id, remote_inbound_id) DO UPDATE SET remark = excluded.remark, protocol = excluded.protocol, port = excluded.port, network = excluded.network, security = excluded.security, enabled = excluded.enabled, stale = excluded.stale, raw_json = excluded.raw_json, last_synced_at = excluded.last_synced_at, updated_at = excluded.updated_at`, inbound.PanelID, inbound.RemoteInboundID, nullString(inbound.Remark), nullString(inbound.Protocol), inbound.Port, nullString(inbound.Network), nullString(inbound.Security), boolToInt(inbound.Enabled), boolToInt(inbound.Stale), nullString(inbound.RawJSON), nullTime(inbound.LastSyncedAt), inbound.CreatedAt.UTC(), inbound.UpdatedAt.UTC())
+	return err
+}
+
+func (r *sqliteInboundRepository) MarkStaleByPanel(ctx context.Context, panelID int64, keep []int64) error {
+	query := `UPDATE inbounds SET stale = 1, updated_at = ? WHERE panel_id = ?`
+	args := []any{time.Now().UTC(), panelID}
+	if len(keep) > 0 {
+		placeholders := strings.TrimRight(strings.Repeat("?,", len(keep)), ",")
+		query += " AND remote_inbound_id NOT IN (" + placeholders + ")"
+		for _, id := range keep {
+			args = append(args, id)
+		}
+	}
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+func (r *sqliteInboundRepository) List(ctx context.Context) ([]models.Inbound, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, panel_id, remote_inbound_id, remark, protocol, port, network, security, enabled, stale, raw_json, last_synced_at, created_at, updated_at FROM inbounds ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []models.Inbound
+	for rows.Next() {
+		item, err := scanInbound(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *item)
+	}
+	return items, rows.Err()
+}
+
+func (r *sqliteInboundRepository) ListByPanel(ctx context.Context, panelID int64) ([]models.Inbound, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, panel_id, remote_inbound_id, remark, protocol, port, network, security, enabled, stale, raw_json, last_synced_at, created_at, updated_at FROM inbounds WHERE panel_id = ? ORDER BY id DESC`, panelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []models.Inbound
+	for rows.Next() {
+		item, err := scanInbound(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *item)
+	}
+	return items, rows.Err()
+}
+
+func (r *sqliteInboundRepository) FindByID(ctx context.Context, id int64) (*models.Inbound, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, panel_id, remote_inbound_id, remark, protocol, port, network, security, enabled, stale, raw_json, last_synced_at, created_at, updated_at FROM inbounds WHERE id = ?`, id)
+	return scanInbound(row)
+}
+
+func (r *sqliteInboundRepository) TouchSyncedAt(ctx context.Context, id int64, syncedAt time.Time) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE inbounds SET last_synced_at = ?, updated_at = ? WHERE id = ?`, syncedAt.UTC(), time.Now().UTC(), id)
+	return err
+}
+
+func scanInbound(scanner interface{ Scan(...any) error }) (*models.Inbound, error) {
+	var inbound models.Inbound
+	var remark, protocol, network, security, rawJSON sql.NullString
+	var enabled, stale int
+	var lastSyncedAt sql.NullTime
+	if err := scanner.Scan(&inbound.ID, &inbound.PanelID, &inbound.RemoteInboundID, &remark, &protocol, &inbound.Port, &network, &security, &enabled, &stale, &rawJSON, &lastSyncedAt, &inbound.CreatedAt, &inbound.UpdatedAt); err != nil {
+		return nil, err
+	}
+	inbound.Remark = remark.String
+	inbound.Protocol = protocol.String
+	inbound.Network = network.String
+	inbound.Security = security.String
+	inbound.Enabled = enabled != 0
+	inbound.Stale = stale != 0
+	inbound.RawJSON = rawJSON.String
+	if lastSyncedAt.Valid {
+		t := lastSyncedAt.Time
+		inbound.LastSyncedAt = &t
+	}
+	return &inbound, nil
 }
 
 func (r *sqliteRefreshTokenRepository) Create(ctx context.Context, token *models.RefreshToken) error {

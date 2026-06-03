@@ -38,17 +38,17 @@ func (u AdminUser) ToDTO() AdminUserDTO {
 }
 
 type Client struct {
-	ID                   int64      `json:"id"`
-	Username             string     `json:"username"`
-	PasswordHash         string     `json:"-"`
-	DisplayName          string     `json:"display_name,omitempty"`
-	Email                string     `json:"email,omitempty"`
-	Status               string     `json:"status"`
-	TrafficLimitBytes    int64      `json:"traffic_limit_bytes"`
-	ExpiryTime           *time.Time `json:"expiry_time,omitempty"`
-	SubscriptionToken    string     `json:"-"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                int64      `json:"id"`
+	Username          string     `json:"username"`
+	PasswordHash      string     `json:"-"`
+	DisplayName       string     `json:"display_name,omitempty"`
+	Email             string     `json:"email,omitempty"`
+	Status            string     `json:"status"`
+	TrafficLimitBytes int64      `json:"traffic_limit_bytes"`
+	ExpiryTime        *time.Time `json:"expiry_time,omitempty"`
+	SubscriptionToken string     `json:"-"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 type ClientDTO struct {
@@ -57,7 +57,7 @@ type ClientDTO struct {
 	DisplayName       string     `json:"display_name,omitempty"`
 	Email             string     `json:"email,omitempty"`
 	Status            string     `json:"status"`
-	TrafficLimitBytes  int64      `json:"traffic_limit_bytes"`
+	TrafficLimitBytes int64      `json:"traffic_limit_bytes"`
 	ExpiryTime        *time.Time `json:"expiry_time,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
@@ -75,17 +75,17 @@ func (c Client) ToDTO() ClientDTO {
 }
 
 type Panel struct {
-	ID               int64      `json:"id"`
-	Name             string     `json:"name"`
-	BaseURL          string     `json:"base_url"`
-	Username         string     `json:"username"`
-	EncryptedPassword string    `json:"-"`
-	Version          string     `json:"version,omitempty"`
-	Status           string     `json:"status"`
-	LastSyncAt       *time.Time `json:"last_sync_at,omitempty"`
-	LastError        string     `json:"last_error,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	ID                int64      `json:"id"`
+	Name              string     `json:"name"`
+	BaseURL           string     `json:"base_url"`
+	Username          string     `json:"username"`
+	EncryptedPassword string     `json:"-"`
+	Version           string     `json:"version,omitempty"`
+	Status            string     `json:"status"`
+	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
+	LastError         string     `json:"last_error,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 func (p Panel) Validate() error {
@@ -105,6 +105,7 @@ type Inbound struct {
 	Network         string     `json:"network,omitempty"`
 	Security        string     `json:"security,omitempty"`
 	Enabled         bool       `json:"enabled"`
+	Stale           bool       `json:"stale"`
 	RawJSON         string     `json:"raw_json,omitempty"`
 	LastSyncedAt    *time.Time `json:"last_synced_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -112,30 +113,30 @@ type Inbound struct {
 }
 
 type ClientAttachment struct {
-	ID              int64      `json:"id"`
-	ClientID        int64      `json:"client_id"`
-	PanelID         int64      `json:"panel_id"`
-	InboundID       int64      `json:"inbound_id"`
-	RemoteClientID  string     `json:"remote_client_id,omitempty"`
-	RemoteEmail     string     `json:"remote_email,omitempty"`
-	Enabled         bool       `json:"enabled"`
-	UploadBytes     int64      `json:"upload_bytes"`
-	DownloadBytes   int64      `json:"download_bytes"`
-	TrafficLimitBytes int64    `json:"traffic_limit_bytes"`
-	ExpiryTime      *time.Time `json:"expiry_time,omitempty"`
-	RawConfig       string     `json:"raw_config,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID                int64      `json:"id"`
+	ClientID          int64      `json:"client_id"`
+	PanelID           int64      `json:"panel_id"`
+	InboundID         int64      `json:"inbound_id"`
+	RemoteClientID    string     `json:"remote_client_id,omitempty"`
+	RemoteEmail       string     `json:"remote_email,omitempty"`
+	Enabled           bool       `json:"enabled"`
+	UploadBytes       int64      `json:"upload_bytes"`
+	DownloadBytes     int64      `json:"download_bytes"`
+	TrafficLimitBytes int64      `json:"traffic_limit_bytes"`
+	ExpiryTime        *time.Time `json:"expiry_time,omitempty"`
+	RawConfig         string     `json:"raw_config,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 type TrafficSnapshot struct {
-	ID           int64     `json:"id"`
-	ClientID     int64     `json:"client_id"`
-	AttachmentID *int64    `json:"attachment_id,omitempty"`
-	UploadBytes  int64     `json:"upload_bytes"`
-	DownloadBytes int64    `json:"download_bytes"`
-	TotalBytes   int64     `json:"total_bytes"`
-	CapturedAt   time.Time `json:"captured_at"`
+	ID            int64     `json:"id"`
+	ClientID      int64     `json:"client_id"`
+	AttachmentID  *int64    `json:"attachment_id,omitempty"`
+	UploadBytes   int64     `json:"upload_bytes"`
+	DownloadBytes int64     `json:"download_bytes"`
+	TotalBytes    int64     `json:"total_bytes"`
+	CapturedAt    time.Time `json:"captured_at"`
 }
 
 type AuditLog struct {

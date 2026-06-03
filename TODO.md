@@ -2010,14 +2010,14 @@ Inbound sync reads remote inbound data from 3x-ui and stores a local mirror in S
 
 Tasks:
 
-* [ ] Call XUI list inbounds.
-* [ ] Upsert inbound records.
-* [ ] Store raw JSON.
-* [ ] Mark removed remote inbounds as disabled or stale.
-* [ ] Update `last_synced_at`.
-* [ ] Update panel `last_sync_at`.
-* [ ] Create sync job record.
-* [ ] Add audit log.
+* [x] Call XUI list inbounds.
+* [x] Upsert inbound records.
+* [x] Store raw JSON.
+* [x] Mark removed remote inbounds as disabled or stale.
+* [x] Update `last_synced_at`.
+* [x] Update panel `last_sync_at`.
+* [x] Create sync job record.
+* [x] Add audit log.
 
 Important:
 
@@ -2050,17 +2050,17 @@ POST /admin/inbounds/:id/refresh
 
 Tasks:
 
-* [ ] Show all inbounds.
-* [ ] Filter by panel.
-* [ ] Filter by protocol.
-* [ ] Filter by network.
-* [ ] Filter by security.
-* [ ] Show remote inbound ID.
-* [ ] Show port.
-* [ ] Show status.
-* [ ] Show stale badge.
-* [ ] Show raw JSON in collapsible view.
-* [ ] Add refresh button.
+* [x] Show all inbounds.
+* [x] Filter by panel.
+* [x] Filter by protocol.
+* [x] Filter by network.
+* [x] Filter by security.
+* [x] Show remote inbound ID.
+* [x] Show port.
+* [x] Show status.
+* [x] Show stale badge.
+* [x] Show raw JSON in collapsible view.
+* [x] Add refresh button.
 
 Acceptance criteria:
 
@@ -2126,7 +2126,7 @@ Tasks:
 * [ ] Add create client.
 * [ ] Add update client.
 * [ ] Add delete client.
-* [ ] Add enable/disable.
+* [x] Add enable/disable.
 * [ ] Add password change.
 * [ ] Add password reset.
 * [ ] Add expiry calculation.
@@ -2274,15 +2274,15 @@ Responsibilities:
 
 Tasks:
 
-* [ ] Create attachment service.
-* [ ] Add attach client to one inbound.
-* [ ] Add attach client to multiple inbounds.
-* [ ] Add detach.
+* [x] Create attachment service.
+* [x] Add attach client to one inbound.
+* [x] Add attach client to multiple inbounds.
+* [x] Add detach.
 * [ ] Add enable/disable.
 * [ ] Add traffic sync.
-* [ ] Add config refresh.
-* [ ] Add audit logs.
-* [ ] Add partial failure result type.
+* [x] Add config refresh.
+* [x] Add audit logs.
+* [x] Add partial failure result type.
 
 ---
 
@@ -2302,14 +2302,14 @@ POST /admin/clients/:id/attachments/:attachment_id/reset-traffic
 
 Tasks:
 
-* [ ] Show attachments on client detail page.
-* [ ] Show available panels.
-* [ ] Show available inbounds grouped by panel.
-* [ ] Allow multi-select attach.
-* [ ] Show partial success/failure results.
-* [ ] Add detach action.
-* [ ] Add sync action.
-* [ ] Add enable/disable action.
+* [x] Show attachments on client detail page.
+* [x] Show available panels.
+* [x] Show available inbounds grouped by panel.
+* [x] Allow multi-select attach.
+* [x] Show partial success/failure results.
+* [x] Add detach action.
+* [x] Add sync action.
+* [x] Add enable/disable action.
 * [ ] Add reset traffic action.
 
 Acceptance criteria:
@@ -2425,7 +2425,7 @@ Tasks:
 * [ ] Generate Trojan config.
 * [ ] Generate Shadowsocks config.
 * [ ] Add tests with sample inbound JSON.
-* [ ] Store generated config in `client_attachments.raw_config`.
+* [x] Store generated config in `client_attachments.raw_config`.
 
 If config generation is too complex for MVP:
 
@@ -2499,9 +2499,9 @@ One config per line.
 
 Tasks:
 
-* [ ] Build raw output.
-* [ ] Add content type `text/plain`.
-* [ ] Add tests.
+* [x] Build raw output.
+* [x] Add content type `text/plain`.
+* [x] Add tests.
 
 ---
 
@@ -2521,9 +2521,9 @@ base64(raw_subscription)
 
 Tasks:
 
-* [ ] Build base64 output.
-* [ ] Add content type `text/plain`.
-* [ ] Add tests.
+* [x] Build base64 output.
+* [x] Add content type `text/plain`.
+* [x] Add tests.
 
 ---
 
@@ -2543,9 +2543,9 @@ Return base64 output
 
 Tasks:
 
-* [ ] Make default format configurable later.
-* [ ] For MVP use base64.
-* [ ] Add tests.
+* [x] Make default format configurable later.
+* [x] For MVP use base64.
+* [x] Add tests.
 
 ---
 

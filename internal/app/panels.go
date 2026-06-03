@@ -184,15 +184,10 @@ func (r *Runner) postAdminPanelSync(c *fiber.Ctx) error {
 	if err := r.panels.Update(c.UserContext(), panel); err != nil {
 		return err
 	}
-	status, message := r.syncPanelMetadata(c.UserContext(), panel)
-	panel.Status = status
-	panel.LastError = message
-	panel.LastSyncAt = ptrTime(time.Now().UTC())
-	panel.UpdatedAt = time.Now().UTC()
-	if err := r.panels.Update(c.UserContext(), panel); err != nil {
+	if err := r.syncPanelInbounds(c.UserContext(), panel); err != nil {
 		return err
 	}
-	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_sync", "panel", &panel.ID, map[string]any{"status": status})
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_sync", "panel", &panel.ID, map[string]any{"status": panel.Status})
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
 }
 
@@ -374,7 +369,12 @@ func renderPanelFormPage(title, action string, form panelForm, appName string, a
 	if editing {
 		passwordNote = `<div class="form-text">Leave blank to keep current password.</div>`
 	}
-	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(title) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(appName) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="` + html.EscapeString(form.Name) + `" required></div><div><label class="form-label" for="base_url">Base URL</label><input class="form-control" id="base_url" name="base_url" value="` + html.EscapeString(form.BaseURL) + `" placeholder="https://panel.example.com" required></div><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">` + passwordLabel + `</label><input class="form-control" id="password" name="password" type="password"` + func() string { if editing { return "" } ; return " required" }() + `>` + passwordNote + `</div><div><label class="form-label" for="version">Version</label><input class="form-control" id="version" name="version" value="` + html.EscapeString(form.Version) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
+	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(title) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(appName) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="` + html.EscapeString(form.Name) + `" required></div><div><label class="form-label" for="base_url">Base URL</label><input class="form-control" id="base_url" name="base_url" value="` + html.EscapeString(form.BaseURL) + `" placeholder="https://panel.example.com" required></div><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">` + passwordLabel + `</label><input class="form-control" id="password" name="password" type="password"` + func() string {
+		if editing {
+			return ""
+		}
+		return " required"
+	}() + `>` + passwordNote + `</div><div><label class="form-label" for="version">Version</label><input class="form-control" id="version" name="version" value="` + html.EscapeString(form.Version) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
 	return renderAdminShell(appName, adminRole, "panels", body)
 }
 

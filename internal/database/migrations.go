@@ -76,6 +76,7 @@ var migrations = []Migration{
 				updated_at DATETIME NOT NULL,
 				FOREIGN KEY(panel_id) REFERENCES panels(id) ON DELETE CASCADE
 			);`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS idx_inbounds_panel_remote ON inbounds(panel_id, remote_inbound_id);`,
 			`CREATE TABLE IF NOT EXISTS client_attachments (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				client_id INTEGER NOT NULL,
@@ -138,6 +139,21 @@ var migrations = []Migration{
 				created_at DATETIME NOT NULL,
 				FOREIGN KEY(panel_id) REFERENCES panels(id) ON DELETE SET NULL
 			);`,
+		},
+	},
+	{
+		Version: 2,
+		Name:    "add_inbound_stale_flag",
+		SQL: []string{
+			`ALTER TABLE inbounds ADD COLUMN stale BOOLEAN NOT NULL DEFAULT 0;`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS idx_inbounds_panel_remote ON inbounds(panel_id, remote_inbound_id);`,
+		},
+	},
+	{
+		Version: 3,
+		Name:    "add_client_attachment_unique_index",
+		SQL: []string{
+			`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_attachments_client_panel_inbound ON client_attachments(client_id, panel_id, inbound_id);`,
 		},
 	},
 }
