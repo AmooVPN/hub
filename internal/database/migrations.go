@@ -1,0 +1,233 @@
+package database
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"sort"
+	"time"
+)
+
+type Migration struct {
+	Version int
+	Name    string
+	SQL     []string
+}
+
+var migrations = []Migration{
+	{
+		Version: 1,
+		Name:    "initial_schema",
+		SQL: []string{
+			`CREATE TABLE IF NOT EXISTS schema_migrations (
+				version INTEGER PRIMARY KEY,
+				applied_at DATETIME NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS admin_users (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				username TEXT NOT NULL UNIQUE,
+				email TEXT,
+				password_hash TEXT NOT NULL,
+				role TEXT NOT NULL,
+				active BOOLEAN NOT NULL DEFAULT 1,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS clients (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				username TEXT NOT NULL UNIQUE,
+				password_hash TEXT NOT NULL,
+				display_name TEXT,
+				email TEXT,
+				status TEXT NOT NULL,
+				traffic_limit_bytes INTEGER DEFAULT 0,
+				expiry_time DATETIME,
+				subscription_token TEXT NOT NULL UNIQUE,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS panels (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT NOT NULL,
+				base_url TEXT NOT NULL UNIQUE,
+				username TEXT NOT NULL,
+				encrypted_password TEXT NOT NULL,
+				version TEXT,
+				status TEXT NOT NULL,
+				last_sync_at DATETIME,
+				last_error TEXT,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS inbounds (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				panel_id INTEGER NOT NULL,
+				remote_inbound_id INTEGER NOT NULL,
+				remark TEXT,
+				protocol TEXT,
+				port INTEGER,
+				network TEXT,
+				security TEXT,
+				enabled BOOLEAN NOT NULL DEFAULT 1,
+				raw_json TEXT,
+				last_synced_at DATETIME,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NOT NULL,
+				FOREIGN KEY(panel_id) REFERENCES panels(id) ON DELETE CASCADE
+			);`,
+			`CREATE TABLE IF NOT EXISTS client_attachments (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				client_id INTEGER NOT NULL,
+				panel_id INTEGER NOT NULL,
+				inbound_id INTEGER NOT NULL,
+				remote_client_id TEXT,
+				remote_email TEXT,
+				enabled BOOLEAN NOT NULL DEFAULT 1,
+				upload_bytes INTEGER DEFAULT 0,
+				download_bytes INTEGER DEFAULT 0,
+				traffic_limit_bytes INTEGER DEFAULT 0,
+				expiry_time DATETIME,
+				raw_config TEXT,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NOT NULL,
+				FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+				FOREIGN KEY(panel_id) REFERENCES panels(id) ON DELETE CASCADE,
+				FOREIGN KEY(inbound_id) REFERENCES inbounds(id) ON DELETE CASCADE
+			);`,
+			`CREATE TABLE IF NOT EXISTS client_refresh_tokens (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				client_id INTEGER NOT NULL,
+				token_hash TEXT NOT NULL UNIQUE,
+				user_agent TEXT,
+				ip_address TEXT,
+				revoked_at DATETIME,
+				expires_at DATETIME NOT NULL,
+				created_at DATETIME NOT NULL,
+				FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+			);`,
+			`CREATE TABLE IF NOT EXISTS traffic_snapshots (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				client_id INTEGER NOT NULL,
+				attachment_id INTEGER,
+				upload_bytes INTEGER NOT NULL,
+				download_bytes INTEGER NOT NULL,
+				total_bytes INTEGER NOT NULL,
+				captured_at DATETIME NOT NULL,
+				FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
+				FOREIGN KEY(attachment_id) REFERENCES client_attachments(id) ON DELETE SET NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS audit_logs (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				actor_type TEXT NOT NULL,
+				actor_id INTEGER,
+				action TEXT NOT NULL,
+				target_type TEXT,
+				target_id INTEGER,
+				metadata_json TEXT,
+				created_at DATETIME NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS sync_jobs (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				panel_id INTEGER,
+				job_type TEXT NOT NULL,
+				status TEXT NOT NULL,
+				message TEXT,
+				started_at DATETIME,
+				finished_at DATETIME,
+				created_at DATETIME NOT NULL,
+				FOREIGN KEY(panel_id) REFERENCES panels(id) ON DELETE SET NULL
+			);`,
+		},
+	},
+}
+
+func RunMigrations(db *sql.DB) error {
+	if len(migrations) == 0 {
+		return nil
+	}
+
+	sorted := make([]Migration, len(migrations))
+	copy(sorted, migrations)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Version < sorted[j].Version })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version INTEGER PRIMARY KEY,
+		applied_at DATETIME NOT NULL
+	);`); err != nil {
+		return err
+	}
+
+	applied := map[int]struct{}{}
+	rows, err := db.QueryContext(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var version int
+		if err := rows.Scan(&version); err != nil {
+			return err
+		}
+		applied[version] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	latest := sorted[len(sorted)-1].Version
+	for version := range applied {
+		if version > latest {
+			return fmt.Errorf("database schema version %d is newer than supported version %d", version, latest)
+		}
+	}
+
+	for _, migration := range sorted {
+		if _, ok := applied[migration.Version]; ok {
+			continue
+		}
+		if err := applyMigration(ctx, db, migration); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, statement := range migration.SQL {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("apply migration %d (%s): %w", migration.Version, migration.Name, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, migration.Version, time.Now().UTC()); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ValidateSchemaVersion(db *sql.DB) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var version sql.NullInt64
+	err := db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if !version.Valid {
+		return errors.New("no schema migrations applied")
+	}
+	return nil
+}
