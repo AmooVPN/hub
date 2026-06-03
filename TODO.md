@@ -1304,9 +1304,9 @@ internal_error
 
 Tasks:
 
-* [ ] Create API response helper.
-* [ ] Create API error helper.
-* [ ] Add consistent HTTP status codes.
+* [x] Create API response helper.
+* [x] Create API error helper.
+* [x] Add consistent HTTP status codes.
 
 ---
 
@@ -1341,10 +1341,10 @@ Response:
 
 Tasks:
 
-* [ ] Load client from JWT subject.
-* [ ] Return safe client profile.
-* [ ] Do not expose password hash.
-* [ ] Do not expose internal subscription token unless needed through subscription endpoint.
+* [x] Load client from JWT subject.
+* [x] Return safe client profile.
+* [x] Do not expose password hash.
+* [x] Do not expose internal subscription token unless needed through subscription endpoint.
 
 ---
 
@@ -1372,8 +1372,8 @@ Rules:
 
 Tasks:
 
-* [ ] Add subscription URL builder.
-* [ ] Add format URLs.
+* [x] Add subscription URL builder.
+* [x] Add format URLs.
 * [ ] Add tests.
 
 ---
@@ -1406,8 +1406,8 @@ Rules:
 
 Tasks:
 
-* [ ] Create configs service.
-* [ ] Add active config filtering.
+* [x] Create configs service.
+* [x] Add active config filtering.
 * [ ] Add tests.
 
 ---
@@ -1428,12 +1428,12 @@ Response:
 
 Tasks:
 
-* [ ] Aggregate usage from client attachments.
-* [ ] Calculate total upload.
-* [ ] Calculate total download.
-* [ ] Calculate total traffic.
-* [ ] Calculate remaining traffic.
-* [ ] If traffic limit is zero, treat as unlimited.
+* [x] Aggregate usage from client attachments.
+* [x] Calculate total upload.
+* [x] Calculate total download.
+* [x] Calculate total traffic.
+* [x] Calculate remaining traffic.
+* [x] If traffic limit is zero, treat as unlimited.
 * [ ] Add tests.
 
 ---
@@ -1458,10 +1458,10 @@ Response:
 
 Tasks:
 
-* [ ] Calculate remaining seconds.
-* [ ] Calculate remaining days.
-* [ ] Calculate expired status.
-* [ ] Calculate traffic status.
+* [x] Calculate remaining seconds.
+* [x] Calculate remaining days.
+* [x] Calculate expired status.
+* [x] Calculate traffic status.
 * [ ] Add tests.
 
 ---

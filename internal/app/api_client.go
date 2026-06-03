@@ -55,6 +55,45 @@ type clientAPIMeResponse struct {
 	SingboxURL        string           `json:"singbox_url"`
 }
 
+type clientAPISubscriptionResponse struct {
+	SubscriptionURL string            `json:"subscription_url"`
+	Formats         map[string]string `json:"formats"`
+	Active          bool              `json:"active"`
+}
+
+type clientAPIConfigItem struct {
+	ID            int64  `json:"id"`
+	PanelName     string `json:"panel_name"`
+	InboundRemark string `json:"inbound_remark"`
+	Protocol      string `json:"protocol"`
+	Enabled       bool   `json:"enabled"`
+	Config        string `json:"config"`
+}
+
+type clientAPIConfigsResponse struct {
+	Configs []clientAPIConfigItem `json:"configs"`
+}
+
+type clientAPIUsageResponse struct {
+	UploadBytes         int64 `json:"upload_bytes"`
+	DownloadBytes       int64 `json:"download_bytes"`
+	TotalBytes          int64 `json:"total_bytes"`
+	TrafficLimitBytes   int64 `json:"traffic_limit_bytes"`
+	RemainingTrafficBytes int64 `json:"remaining_traffic_bytes"`
+}
+
+type clientAPIStatusResponse struct {
+	Status            string `json:"status"`
+	IsActive          bool   `json:"is_active"`
+	IsExpired         bool   `json:"is_expired"`
+	ExpiryTime        string `json:"expiry_time,omitempty"`
+	RemainingSeconds  int64  `json:"remaining_seconds"`
+	RemainingDays     int64  `json:"remaining_days"`
+	TrafficLimitBytes int64  `json:"traffic_limit_bytes"`
+	UsedTrafficBytes  int64  `json:"used_traffic_bytes"`
+	RemainingTrafficBytes int64 `json:"remaining_traffic_bytes"`
+}
+
 func (r *Runner) postClientAPILogin(c *fiber.Ctx) error {
 	var req clientAPILoginRequest
 	if err := json.Unmarshal(c.Body(), &req); err != nil {
@@ -166,6 +205,99 @@ func (r *Runner) getClientAPIMe(c *fiber.Ctx) error {
 		Base64URL:          summary.Base64URL,
 		ClashURL:           summary.ClashURL,
 		SingboxURL:         summary.SingboxURL,
+	})
+}
+
+func (r *Runner) getClientAPISubscription(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "Authorization required")
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	return c.Status(fiber.StatusOK).JSON(clientAPISubscriptionResponse{
+		SubscriptionURL: summary.SubscriptionURL,
+		Formats: map[string]string{
+			"raw":     summary.RawSubscriptionURL,
+			"base64":  summary.Base64URL,
+			"clash":   summary.ClashURL,
+			"singbox": summary.SingboxURL,
+		},
+		Active: summary.StatusText == "active",
+	})
+}
+
+func (r *Runner) getClientAPIConfigs(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "Authorization required")
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	items := make([]clientAPIConfigItem, 0, len(summary.Configs))
+	for i, cfg := range summary.Configs {
+		items = append(items, clientAPIConfigItem{
+			ID:            int64(i + 1),
+			PanelName:     cfg.PanelName,
+			InboundRemark: cfg.InboundRemark,
+			Protocol:      cfg.Protocol,
+			Enabled:       cfg.Enabled,
+			Config:        cfg.CopyValue,
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(clientAPIConfigsResponse{Configs: items})
+}
+
+func (r *Runner) getClientAPIUsage(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "Authorization required")
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	return c.Status(fiber.StatusOK).JSON(clientAPIUsageResponse{
+		UploadBytes:           summary.UploadBytes,
+		DownloadBytes:         summary.DownloadBytes,
+		TotalBytes:            summary.TotalBytes,
+		TrafficLimitBytes:     client.TrafficLimitBytes,
+		RemainingTrafficBytes: summary.RemainingBytes,
+	})
+}
+
+func (r *Runner) getClientAPIStatus(c *fiber.Ctx) error {
+	client, ok := currentClient(c)
+	if !ok {
+		return apiError(c, fiber.StatusUnauthorized, "unauthorized", "Authorization required")
+	}
+	summary, err := r.loadClientSummary(c.UserContext(), client)
+	if err != nil {
+		return err
+	}
+	remainingSeconds, remainingDays := int64(0), int64(0)
+	isExpired := summary.StatusText == "expired"
+	if client.ExpiryTime != nil {
+		remaining := time.Until(*client.ExpiryTime)
+		if remaining > 0 {
+			remainingSeconds = int64(remaining.Seconds())
+			remainingDays = int64(remaining.Hours() / 24)
+		}
+	}
+	return c.Status(fiber.StatusOK).JSON(clientAPIStatusResponse{
+		Status:                summary.StatusText,
+		IsActive:              summary.StatusText == "active",
+		IsExpired:             isExpired,
+		ExpiryTime:            summary.ExpiryText,
+		RemainingSeconds:      remainingSeconds,
+		RemainingDays:         remainingDays,
+		TrafficLimitBytes:     client.TrafficLimitBytes,
+		UsedTrafficBytes:      summary.TotalBytes,
+		RemainingTrafficBytes: summary.RemainingBytes,
 	})
 }
 

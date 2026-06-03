@@ -149,6 +149,10 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/api/v1/client/auth/refresh", r.postClientAPIRefresh)
 	app.Post("/api/v1/client/auth/logout", r.postClientAPILogout)
 	app.Get("/api/v1/client/me", r.requireClientAPIJWT, r.getClientAPIMe)
+	app.Get("/api/v1/client/subscription", r.requireClientAPIJWT, r.getClientAPISubscription)
+	app.Get("/api/v1/client/configs", r.requireClientAPIJWT, r.getClientAPIConfigs)
+	app.Get("/api/v1/client/usage", r.requireClientAPIJWT, r.getClientAPIUsage)
+	app.Get("/api/v1/client/status", r.requireClientAPIJWT, r.getClientAPIStatus)
 
 	return app
 }
