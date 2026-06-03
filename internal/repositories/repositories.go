@@ -40,15 +40,23 @@ type AuditRepository interface {
 	ListRecent(context.Context, int) ([]models.AuditLog, error)
 }
 
+type RefreshTokenRepository interface {
+	Create(context.Context, *models.RefreshToken) error
+	FindActiveByHash(context.Context, string) (*models.RefreshToken, error)
+	RevokeByHash(context.Context, string) error
+}
+
 type sqliteAdminRepository struct{ db *sql.DB }
 type sqliteClientRepository struct{ db *sql.DB }
 type sqlitePanelRepository struct{ db *sql.DB }
 type sqliteAuditRepository struct{ db *sql.DB }
+type sqliteRefreshTokenRepository struct{ db *sql.DB }
 
 func NewAdminRepository(db *sql.DB) AdminRepository { return &sqliteAdminRepository{db: db} }
 func NewClientRepository(db *sql.DB) ClientRepository { return &sqliteClientRepository{db: db} }
 func NewPanelRepository(db *sql.DB) PanelRepository { return &sqlitePanelRepository{db: db} }
 func NewAuditRepository(db *sql.DB) AuditRepository { return &sqliteAuditRepository{db: db} }
+func NewRefreshTokenRepository(db *sql.DB) RefreshTokenRepository { return &sqliteRefreshTokenRepository{db: db} }
 
 func (r *sqliteAdminRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
@@ -298,6 +306,42 @@ func (r *sqliteAuditRepository) ListRecent(ctx context.Context, limit int) ([]mo
 		items = append(items, audit)
 	}
 	return items, rows.Err()
+}
+
+func (r *sqliteRefreshTokenRepository) Create(ctx context.Context, token *models.RefreshToken) error {
+	if token == nil {
+		return errors.New("refresh token is nil")
+	}
+	if token.CreatedAt.IsZero() {
+		token.CreatedAt = time.Now().UTC()
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO client_refresh_tokens (client_id, token_hash, user_agent, ip_address, revoked_at, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, token.ClientID, token.TokenHash, nullString(token.UserAgent), nullString(token.IPAddress), nullTime(token.RevokedAt), token.ExpiresAt.UTC(), token.CreatedAt.UTC())
+	return err
+}
+
+func (r *sqliteRefreshTokenRepository) FindActiveByHash(ctx context.Context, hash string) (*models.RefreshToken, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, client_id, token_hash, user_agent, ip_address, revoked_at, expires_at, created_at FROM client_refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL`, hash)
+	var token models.RefreshToken
+	var userAgent, ipAddress sql.NullString
+	var revokedAt sql.NullTime
+	if err := row.Scan(&token.ID, &token.ClientID, &token.TokenHash, &userAgent, &ipAddress, &revokedAt, &token.ExpiresAt, &token.CreatedAt); err != nil {
+		return nil, err
+	}
+	token.UserAgent = userAgent.String
+	token.IPAddress = ipAddress.String
+	if revokedAt.Valid {
+		t := revokedAt.Time
+		token.RevokedAt = &t
+	}
+	if time.Now().UTC().After(token.ExpiresAt) {
+		return nil, sql.ErrNoRows
+	}
+	return &token, nil
+}
+
+func (r *sqliteRefreshTokenRepository) RevokeByHash(ctx context.Context, hash string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE client_refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`, time.Now().UTC(), hash)
+	return err
 }
 
 func nullString(value string) any {

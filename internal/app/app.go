@@ -30,6 +30,7 @@ type Runner struct {
 	redis       *redis.Client
 	admins      repositories.AdminRepository
 	clients     repositories.ClientRepository
+	refreshes   repositories.RefreshTokenRepository
 	panels      repositories.PanelRepository
 	audit       repositories.AuditRepository
 	logger      *slog.Logger
@@ -72,6 +73,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 
 	admins := repositories.NewAdminRepository(db)
 	clients := repositories.NewClientRepository(db)
+	refreshes := repositories.NewRefreshTokenRepository(db)
 	panels := repositories.NewPanelRepository(db)
 	audit := repositories.NewAuditRepository(db)
 
@@ -89,6 +91,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		redis:      rdb,
 		admins:     admins,
 		clients:    clients,
+		refreshes:  refreshes,
 		panels:     panels,
 		audit:      audit,
 		logger:     logger,
@@ -142,6 +145,10 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Get("/client/configs", r.getClientConfigs)
 	app.Get("/client/subscription", r.getClientSubscription)
 	app.Get("/client/usage", r.getClientUsage)
+	app.Post("/api/v1/client/auth/login", r.postClientAPILogin)
+	app.Post("/api/v1/client/auth/refresh", r.postClientAPIRefresh)
+	app.Post("/api/v1/client/auth/logout", r.postClientAPILogout)
+	app.Get("/api/v1/client/me", r.requireClientAPIJWT, r.getClientAPIMe)
 
 	return app
 }

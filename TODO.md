@@ -1131,16 +1131,16 @@ Stored hashed
 
 Tasks:
 
-* [ ] Add JWT signing service.
-* [ ] Add JWT validation service.
-* [ ] Add refresh token generator.
-* [ ] Store hashed refresh tokens.
-* [ ] Add token revocation.
-* [ ] Add refresh endpoint.
-* [ ] Add logout endpoint.
-* [ ] Add API rate limiting.
-* [ ] Add JWT middleware.
-* [ ] Add tests.
+* [x] Add JWT signing service.
+* [x] Add JWT validation service.
+* [x] Add refresh token generator.
+* [x] Store hashed refresh tokens.
+* [x] Add token revocation.
+* [x] Add refresh endpoint.
+* [x] Add logout endpoint.
+* [x] Add API rate limiting.
+* [x] Add JWT middleware.
+* [x] Add tests.
 
 ---
 
@@ -1269,8 +1269,8 @@ Response:
 
 Tasks:
 
-* [ ] Revoke provided refresh token.
-* [ ] Add audit log.
+* [x] Revoke provided refresh token.
+* [x] Add audit log.
 * [ ] Access token remains valid until expiry unless blacklist is added later.
 
 ---
