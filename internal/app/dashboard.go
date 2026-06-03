@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPM/hub/internal/security"
 )
 
 type dashboardSummary struct {
@@ -142,7 +143,11 @@ func renderDashboardPage(admin *models.AdminUser, appName string, summary dashbo
 	if strings.EqualFold(admin.Role, "owner") || strings.EqualFold(admin.Role, "admin") {
 		usersLink = `<a class="btn btn-outline-primary btn-sm" href="/admin/users">Manage admins</a>`
 	}
-	body := `<script src="https://unpkg.com/htmx.org@1.9.12"></script><div class="d-flex flex-column gap-4"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3"><div><h1 class="h3 mb-1">Dashboard</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="d-flex gap-2 flex-wrap">` + usersLink + `<a class="btn btn-outline-secondary btn-sm" href="/admin/settings">Settings</a><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div><div id="dashboard-widgets" hx-get="/admin/dashboard/widgets" hx-trigger="load, every 30s" hx-swap="outerHTML">` + renderDashboardWidgets(summary) + `</div><div class="row g-3"><div class="col-12 col-xl-6">` + renderDashboardSyncJobs(summary.RecentSyncJobs) + `</div><div class="col-12 col-xl-6">` + renderDashboardAudits(summary.RecentAudits) + `</div><div class="col-12"><div class="card"><div class="card-header fw-semibold">Recent errors</div><div class="card-body">` + renderDashboardErrors(summary.RecentErrors) + `</div></div></div></div></div>`
+	trafficLink := ""
+	if security.HasPermission(admin.Role, security.PermissionManagePanels) {
+		trafficLink = `<form method="post" action="/admin/sync/traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form>`
+	}
+	body := `<script src="https://unpkg.com/htmx.org@1.9.12"></script><div class="d-flex flex-column gap-4"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3"><div><h1 class="h3 mb-1">Dashboard</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="d-flex gap-2 flex-wrap">` + usersLink + trafficLink + `<a class="btn btn-outline-secondary btn-sm" href="/admin/settings">Settings</a><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div><div id="dashboard-widgets" hx-get="/admin/dashboard/widgets" hx-trigger="load, every 30s" hx-swap="outerHTML">` + renderDashboardWidgets(summary) + `</div><div class="row g-3"><div class="col-12 col-xl-6">` + renderDashboardSyncJobs(summary.RecentSyncJobs) + `</div><div class="col-12 col-xl-6">` + renderDashboardAudits(summary.RecentAudits) + `</div><div class="col-12"><div class="card"><div class="card-header fw-semibold">Recent errors</div><div class="card-body">` + renderDashboardErrors(summary.RecentErrors) + `</div></div></div></div></div>`
 	return renderAdminShell(appName, admin.Role, "dashboard", body)
 }
 

@@ -53,6 +53,12 @@ type AuditRepository interface {
 	ListRecent(context.Context, int) ([]models.AuditLog, error)
 }
 
+type SyncJobRepository interface {
+	Create(context.Context, *models.SyncJob) error
+	Update(context.Context, *models.SyncJob) error
+	FindByID(context.Context, int64) (*models.SyncJob, error)
+}
+
 type RefreshTokenRepository interface {
 	Create(context.Context, *models.RefreshToken) error
 	FindActiveByHash(context.Context, string) (*models.RefreshToken, error)
@@ -63,6 +69,7 @@ type sqliteAdminRepository struct{ db *sql.DB }
 type sqliteClientRepository struct{ db *sql.DB }
 type sqlitePanelRepository struct{ db *sql.DB }
 type sqliteAuditRepository struct{ db *sql.DB }
+type sqliteSyncJobRepository struct{ db *sql.DB }
 type sqliteRefreshTokenRepository struct{ db *sql.DB }
 type sqliteInboundRepository struct{ db *sql.DB }
 
@@ -70,6 +77,7 @@ func NewAdminRepository(db *sql.DB) AdminRepository   { return &sqliteAdminRepos
 func NewClientRepository(db *sql.DB) ClientRepository { return &sqliteClientRepository{db: db} }
 func NewPanelRepository(db *sql.DB) PanelRepository   { return &sqlitePanelRepository{db: db} }
 func NewAuditRepository(db *sql.DB) AuditRepository   { return &sqliteAuditRepository{db: db} }
+func NewSyncJobRepository(db *sql.DB) SyncJobRepository { return &sqliteSyncJobRepository{db: db} }
 func NewRefreshTokenRepository(db *sql.DB) RefreshTokenRepository {
 	return &sqliteRefreshTokenRepository{db: db}
 }
@@ -358,6 +366,42 @@ func (r *sqliteAuditRepository) ListRecent(ctx context.Context, limit int) ([]mo
 	return items, rows.Err()
 }
 
+func (r *sqliteSyncJobRepository) Create(ctx context.Context, job *models.SyncJob) error {
+	if job == nil {
+		return errors.New("sync job is nil")
+	}
+	if job.CreatedAt.IsZero() {
+		job.CreatedAt = time.Now().UTC()
+	}
+	if job.StartedAt == nil {
+		now := job.CreatedAt
+		job.StartedAt = &now
+	}
+	result, err := r.db.ExecContext(ctx, `INSERT INTO sync_jobs (panel_id, job_type, status, message, started_at, finished_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, job.PanelID, job.JobType, job.Status, nullString(job.Message), nullTime(job.StartedAt), nullTime(job.FinishedAt), job.CreatedAt.UTC())
+	if err != nil {
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	job.ID = id
+	return nil
+}
+
+func (r *sqliteSyncJobRepository) Update(ctx context.Context, job *models.SyncJob) error {
+	if job == nil {
+		return errors.New("sync job is nil")
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE sync_jobs SET panel_id = ?, job_type = ?, status = ?, message = ?, started_at = ?, finished_at = ? WHERE id = ?`, job.PanelID, job.JobType, job.Status, nullString(job.Message), nullTime(job.StartedAt), nullTime(job.FinishedAt), job.ID)
+	return err
+}
+
+func (r *sqliteSyncJobRepository) FindByID(ctx context.Context, id int64) (*models.SyncJob, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, panel_id, job_type, status, message, started_at, finished_at, created_at FROM sync_jobs WHERE id = ?`, id)
+	return scanSyncJob(row)
+}
+
 func (r *sqliteInboundRepository) Upsert(ctx context.Context, inbound *models.Inbound) error {
 	if inbound == nil {
 		return errors.New("inbound is nil")
@@ -450,6 +494,30 @@ func scanInbound(scanner interface{ Scan(...any) error }) (*models.Inbound, erro
 		inbound.LastSyncedAt = &t
 	}
 	return &inbound, nil
+}
+
+func scanSyncJob(scanner interface{ Scan(...any) error }) (*models.SyncJob, error) {
+	var job models.SyncJob
+	var panelID sql.NullInt64
+	var message sql.NullString
+	var startedAt, finishedAt sql.NullTime
+	if err := scanner.Scan(&job.ID, &panelID, &job.JobType, &job.Status, &message, &startedAt, &finishedAt, &job.CreatedAt); err != nil {
+		return nil, err
+	}
+	if panelID.Valid {
+		v := panelID.Int64
+		job.PanelID = &v
+	}
+	job.Message = message.String
+	if startedAt.Valid {
+		t := startedAt.Time
+		job.StartedAt = &t
+	}
+	if finishedAt.Valid {
+		t := finishedAt.Time
+		job.FinishedAt = &t
+	}
+	return &job, nil
 }
 
 func (r *sqliteRefreshTokenRepository) Create(ctx context.Context, token *models.RefreshToken) error {

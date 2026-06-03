@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -47,19 +49,26 @@ func (r *Runner) servePublicSubscription(c *fiber.Ctx, format string) error {
 		return err
 	}
 	raw := buildSubscriptionRaw(summary.Configs)
+	if cached, ok := r.loadSubscriptionCache(c.UserContext(), client.SubscriptionToken, format); ok {
+		c.Set(fiber.HeaderContentType, "text/plain; charset=utf-8")
+		return c.SendString(cached)
+	}
+	result := raw
 	c.Set(fiber.HeaderContentType, "text/plain; charset=utf-8")
 	switch strings.ToLower(format) {
 	case "", "base64":
-		return c.SendString(base64.StdEncoding.EncodeToString([]byte(raw)))
+		result = base64.StdEncoding.EncodeToString([]byte(raw))
 	case "raw":
-		return c.SendString(raw)
+		result = raw
 	case "clash":
-		return c.SendString("# clash subscription placeholder\n" + raw)
+		result = "# clash subscription placeholder\n" + raw
 	case "singbox":
-		return c.SendString("# sing-box subscription placeholder\n" + raw)
+		result = "# sing-box subscription placeholder\n" + raw
 	default:
 		return fiber.NewError(fiber.StatusNotFound, "subscription format not found")
 	}
+	_ = r.storeSubscriptionCache(c.UserContext(), client.SubscriptionToken, format, result)
+	return c.SendString(result)
 }
 
 func buildSubscriptionRaw(configs []clientConfigRow) string {
@@ -77,4 +86,33 @@ func buildSubscriptionRaw(configs []clientConfigRow) string {
 		b.WriteString(strings.TrimSpace(cfg.CopyValue))
 	}
 	return b.String()
+}
+
+func (r *Runner) invalidateSubscriptionCache(ctx context.Context, token string) {
+	if r.redis == nil || strings.TrimSpace(token) == "" {
+		return
+	}
+	_ = r.redis.Del(ctx, subscriptionCacheKey(token, "raw"), subscriptionCacheKey(token, "base64"), subscriptionCacheKey(token, "clash"), subscriptionCacheKey(token, "singbox")).Err()
+}
+
+func (r *Runner) loadSubscriptionCache(ctx context.Context, token, format string) (string, bool) {
+	if r.redis == nil {
+		return "", false
+	}
+	value, err := r.redis.Get(ctx, subscriptionCacheKey(token, format)).Result()
+	if err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+func (r *Runner) storeSubscriptionCache(ctx context.Context, token, format, value string) error {
+	if r.redis == nil || strings.TrimSpace(token) == "" {
+		return nil
+	}
+	return r.redis.Set(ctx, subscriptionCacheKey(token, format), value, 5*time.Minute).Err()
+}
+
+func subscriptionCacheKey(token, format string) string {
+	return fmt.Sprintf("hub:sub:%s:%s", token, strings.ToLower(format))
 }

@@ -125,6 +125,7 @@ func (r *Runner) postAdminClientAttachmentCreate(c *fiber.Ctx) error {
 		result.Successes = append(result.Successes, label)
 		_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "attachment_create", "client_attachment", &attachment.ID, map[string]any{"client_id": client.ID, "panel_id": panel.ID, "inbound_id": inbound.ID})
 	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
 	attachments, err := r.loadClientAttachments(c.UserContext(), client.ID)
 	if err != nil {
 		return err
@@ -171,6 +172,7 @@ func (r *Runner) postAdminClientAttachmentDelete(c *fiber.Ctx) error {
 	if err := r.deleteClientAttachment(c.UserContext(), attachment.ID); err != nil {
 		return err
 	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "attachment_delete", "client_attachment", &attachment.ID, map[string]any{"client_id": client.ID, "panel_id": panel.ID, "inbound_id": inbound.ID})
 	return c.Redirect(fmt.Sprintf("/admin/clients/%d/attachments", client.ID), fiber.StatusFound)
 }
@@ -209,6 +211,7 @@ func (r *Runner) postAdminClientAttachmentDetach(c *fiber.Ctx) error {
 	if err := r.setClientAttachmentEnabled(c.UserContext(), attachment.ID, false); err != nil {
 		return err
 	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "attachment_detach", "client_attachment", &attachment.ID, map[string]any{"client_id": client.ID, "panel_id": panel.ID, "inbound_id": inbound.ID})
 	return c.Redirect(fmt.Sprintf("/admin/clients/%d/attachments", client.ID), fiber.StatusFound)
 }
@@ -246,6 +249,7 @@ func (r *Runner) postAdminClientAttachmentRefresh(c *fiber.Ctx) error {
 	if err := r.saveClientAttachmentConfig(c.UserContext(), attachment.ID, attachment.RawConfig, attachment.UpdatedAt); err != nil {
 		return err
 	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "attachment_refresh", "client_attachment", &attachment.ID, map[string]any{"client_id": client.ID, "panel_id": panel.ID, "inbound_id": inbound.ID})
 	return c.Redirect(fmt.Sprintf("/admin/clients/%d/attachments", client.ID), fiber.StatusFound)
 }
@@ -285,6 +289,7 @@ func (r *Runner) postAdminClientAttachmentSync(c *fiber.Ctx) error {
 	if err := r.updateClientAttachmentTraffic(c.UserContext(), attachment.ID, traffic.Upload, traffic.Download); err != nil {
 		return err
 	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "attachment_sync", "client_attachment", &attachment.ID, map[string]any{"client_id": client.ID, "panel_id": panel.ID, "inbound_id": inbound.ID, "upload_bytes": traffic.Upload, "download_bytes": traffic.Download})
 	return c.Redirect(fmt.Sprintf("/admin/clients/%d/attachments", client.ID), fiber.StatusFound)
 }
@@ -331,6 +336,7 @@ func (r *Runner) postAdminClientAttachmentToggleEnabled(c *fiber.Ctx, enabled bo
 	if err := r.setClientAttachmentEnabled(c.UserContext(), attachment.ID, enabled); err != nil {
 		return err
 	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
 	action := "attachment_disable"
 	if enabled {
 		action = "attachment_enable"
@@ -749,7 +755,7 @@ func renderAdminClientAttachmentsPage(client *models.Client, attachments []model
 	if rows.Len() == 0 {
 		rows.WriteString(`<tr><td colspan="5" class="text-body-secondary">No attachments yet.</td></tr>`)
 	}
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(client.Username) + ` attachments</h1><p class="text-body-secondary mb-0">Attach this client to one or more inbounds</p></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div></div>` + alert.String() + batchMessage.String() + `<div class="card shadow-sm mb-3"><div class="card-body"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments" class="row g-2 align-items-end"><div class="col-12 col-md-9"><label class="form-label" for="inbound_ids">Inbounds</label><select class="form-select" id="inbound_ids" name="inbound_ids" multiple size="8" required>` + selectOpts.String() + `</select><div class="form-text">Use Ctrl/Cmd to select multiple inbounds.</div></div><div class="col-12 col-md-3"><button class="btn btn-primary w-100" type="submit">Attach selected</button></div></form></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Inbound</th><th>Remote ID</th><th>Remote Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(client.Username) + ` attachments</h1><p class="text-body-secondary mb-0">Attach this client to one or more inbounds</p></div><div class="d-flex gap-2"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div></div>` + alert.String() + batchMessage.String() + `<div class="card shadow-sm mb-3"><div class="card-body"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments" class="row g-2 align-items-end"><div class="col-12 col-md-9"><label class="form-label" for="inbound_ids">Inbounds</label><select class="form-select" id="inbound_ids" name="inbound_ids" multiple size="8" required>` + selectOpts.String() + `</select><div class="form-text">Use Ctrl/Cmd to select multiple inbounds.</div></div><div class="col-12 col-md-3"><button class="btn btn-primary w-100" type="submit">Attach selected</button></div></form></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Inbound</th><th>Remote ID</th><th>Remote Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
 	return renderAdminShell(appName, adminRole, "clients", body)
 }
 

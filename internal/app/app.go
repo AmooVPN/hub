@@ -33,6 +33,7 @@ type Runner struct {
 	refreshes  repositories.RefreshTokenRepository
 	panels     repositories.PanelRepository
 	inbounds   repositories.InboundRepository
+	syncJobs   repositories.SyncJobRepository
 	audit      repositories.AuditRepository
 	logger     *slog.Logger
 	loginLocks *attemptTracker
@@ -77,6 +78,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 	refreshes := repositories.NewRefreshTokenRepository(db)
 	panels := repositories.NewPanelRepository(db)
 	inbounds := repositories.NewInboundRepository(db)
+	syncJobs := repositories.NewSyncJobRepository(db)
 	audit := repositories.NewAuditRepository(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -97,6 +99,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		panels:     panels,
 		inbounds:   inbounds,
 		audit:      audit,
+		syncJobs:   syncJobs,
 		logger:     logger,
 		loginLocks: newAttemptTracker(5, 15*time.Minute),
 	}
@@ -130,6 +133,9 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Use("/admin", r.requireAdminSession)
 	app.Get("/admin", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboard)
 	app.Get("/admin/dashboard/widgets", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboardWidgets)
+	app.Post("/admin/sync/traffic", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncTraffic)
+	app.Get("/admin/sync-jobs", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobs)
+	app.Get("/admin/sync-jobs/:id", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobDetail)
 	app.Get("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.getAdminSettings)
 	app.Get("/admin/panels", security.RequirePermission(security.PermissionManagePanels), r.getAdminPanels)
 	app.Get("/admin/panels/new", security.RequirePermission(security.PermissionManagePanels), r.getAdminPanelNew)
@@ -140,6 +146,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/panels/:id/delete", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelDelete)
 	app.Post("/admin/panels/:id/test", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelTest)
 	app.Post("/admin/panels/:id/sync", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelSync)
+	app.Post("/admin/panels/:id/sync-traffic", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelSyncTraffic)
 	app.Post("/admin/panels/:id/clear-session", security.RequirePermission(security.PermissionManagePanels), r.postAdminPanelClearSession)
 	app.Get("/admin/inbounds", security.RequirePermission(security.PermissionManagePanels), r.getAdminInbounds)
 	app.Get("/admin/panels/:id/inbounds", security.RequirePermission(security.PermissionManagePanels), r.getAdminPanelInbounds)
@@ -155,6 +162,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/clients/:id/attachments/:attachment_id/sync", security.RequirePermission(security.PermissionManageClients), r.postAdminClientAttachmentSync)
 	app.Post("/admin/clients/:id/attachments/:attachment_id/disable", security.RequirePermission(security.PermissionManageClients), r.postAdminClientAttachmentDisable)
 	app.Post("/admin/clients/:id/attachments/:attachment_id/enable", security.RequirePermission(security.PermissionManageClients), r.postAdminClientAttachmentEnable)
+	app.Post("/admin/clients/:id/sync-traffic", security.RequirePermission(security.PermissionManageClients), r.postAdminClientSyncTraffic)
 	app.Get("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUsers)
 	app.Get("/admin/users/new", security.RequirePermission(security.PermissionManageAdmins), r.getAdminUserNew)
 	app.Post("/admin/users", security.RequirePermission(security.PermissionManageAdmins), r.postAdminUserCreate)

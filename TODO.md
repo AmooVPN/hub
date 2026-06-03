@@ -1374,7 +1374,7 @@ Tasks:
 
 * [x] Add subscription URL builder.
 * [x] Add format URLs.
-* [ ] Add tests.
+* [x] Add tests.
 
 ---
 
@@ -2616,11 +2616,11 @@ hub:sub:{token}:base64
 
 Tasks:
 
-* [ ] Cache raw output.
-* [ ] Cache base64 output.
+* [x] Cache raw output.
+* [x] Cache base64 output.
 * [ ] Cache TTL configurable.
 * [ ] Invalidate on client update.
-* [ ] Invalidate on attachment update.
+* [x] Invalidate on attachment update.
 * [ ] Invalidate on inbound sync.
 * [ ] Invalidate on traffic limit reached.
 
@@ -2632,14 +2632,14 @@ Traffic can be synced from remote panels.
 
 Tasks:
 
-* [ ] Add traffic sync per panel.
-* [ ] Add traffic sync per attachment.
-* [ ] Update `client_attachments.upload_bytes`.
-* [ ] Update `client_attachments.download_bytes`.
-* [ ] Create traffic snapshot.
-* [ ] Update client usage aggregation.
-* [ ] Add sync job record.
-* [ ] Add audit log for manual sync.
+* [x] Add traffic sync per panel.
+* [x] Add traffic sync per attachment.
+* [x] Update `client_attachments.upload_bytes`.
+* [x] Update `client_attachments.download_bytes`.
+* [x] Create traffic snapshot.
+* [x] Update client usage aggregation.
+* [x] Add sync job record.
+* [x] Add audit log for manual sync.
 
 Routes:
 
@@ -2681,11 +2681,11 @@ subscription_cache_refresh
 Tasks:
 
 * [ ] Add job service.
-* [ ] Add sync job repository.
-* [ ] Add Redis lock.
-* [ ] Prevent concurrent sync for same panel.
-* [ ] Store job status.
-* [ ] Show job history in UI.
+* [x] Add sync job repository.
+* [x] Add Redis lock.
+* [x] Prevent concurrent sync for same panel.
+* [x] Store job status.
+* [x] Show job history in UI.
 
 Redis lock key:
 
@@ -2728,10 +2728,10 @@ POST /admin/sync-jobs/:id/retry
 
 Tasks:
 
-* [ ] List jobs.
-* [ ] Filter by status.
-* [ ] Filter by panel.
-* [ ] Show job detail.
+* [x] List jobs.
+* [x] Filter by status.
+* [x] Filter by panel.
+* [x] Show job detail.
 * [ ] Retry failed job when safe.
 
 ---
@@ -3046,7 +3046,7 @@ Tasks:
 * [ ] Add automatic pre-import backup.
 * [ ] Add restore rollback on failure.
 * [ ] Add audit log.
-* [ ] Add tests.
+* [x] Add tests.
 
 Acceptance criteria:
 
@@ -3354,11 +3354,11 @@ hub:lock:client:{client_id}:attach
 
 Tasks:
 
-* [ ] Implement Redis lock helper.
-* [ ] Add lock TTL.
-* [ ] Add lock owner token.
-* [ ] Only lock owner can release lock.
-* [ ] Fallback behavior if Redis unavailable.
+* [x] Implement Redis lock helper.
+* [x] Add lock TTL.
+* [x] Add lock owner token.
+* [x] Only lock owner can release lock.
+* [x] Fallback behavior if Redis unavailable.
 * [ ] Add tests.
 
 ---
@@ -3945,10 +3945,10 @@ Required tests:
 * [ ] Job status update.
 * [ ] Job failure state.
 * [ ] Retry count.
-* [ ] Redis lock acquire.
-* [ ] Redis lock release.
-* [ ] Lock cannot be released by non-owner.
-* [ ] Concurrent panel sync prevented.
+* [x] Redis lock acquire.
+* [x] Redis lock release.
+* [x] Lock cannot be released by non-owner.
+* [x] Concurrent panel sync prevented.
 
 ---
 

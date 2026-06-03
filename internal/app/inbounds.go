@@ -154,83 +154,86 @@ func (r *Runner) syncPanelInbounds(ctx context.Context, panel *models.Panel) err
 	if panel == nil {
 		return errors.New("panel is nil")
 	}
-	jobID, err := r.startSyncJob(ctx, panel.ID, "inbound_sync")
-	if err != nil {
-		return err
-	}
-	if err := r.updateSyncJob(ctx, jobID, "running", "", nil); err != nil {
-		return err
-	}
-	password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
-	if err != nil {
-		return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
-	}
-	client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
-	client.SetUserAgent(r.cfg.AppName)
-	loginCtx, cancelLogin := context.WithTimeout(ctx, 10*time.Second)
-	defer cancelLogin()
-	if err := client.Login(loginCtx); err != nil {
-		return r.finishInboundSync(ctx, jobID, panel, classifyPanelError(err), err.Error(), err)
-	}
-	listCtx, cancelList := context.WithTimeout(ctx, 20*time.Second)
-	defer cancelList()
-	remoteInbounds, err := client.ListInbounds(listCtx)
-	if err != nil {
-		return r.finishInboundSync(ctx, jobID, panel, classifyPanelError(err), err.Error(), err)
-	}
-	now := time.Now().UTC()
-	seen := make([]int64, 0, len(remoteInbounds))
-	for _, remote := range remoteInbounds {
-		rawJSON, _ := json.Marshal(remote)
-		inbound := &models.Inbound{
-			PanelID:         panel.ID,
-			RemoteInboundID: remote.ID,
-			Remark:          remote.Remark,
-			Protocol:        remote.Protocol,
-			Port:            remote.Port,
-			Network:         remote.Network,
-			Security:        remote.Security,
-			Enabled:         remote.Enabled,
-			Stale:           false,
-			RawJSON:         string(rawJSON),
-			LastSyncedAt:    &now,
-			CreatedAt:       now,
-			UpdatedAt:       now,
+	return r.withPanelSyncLock(ctx, panel.ID, func() error {
+		jobID, err := r.startSyncJob(ctx, &panel.ID, "inbound_sync")
+		if err != nil {
+			return err
 		}
-		if err := r.inbounds.Upsert(ctx, inbound); err != nil {
+		if err := r.updateSyncJob(ctx, jobID, "running", "", nil); err != nil {
+			return err
+		}
+		password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+		if err != nil {
 			return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
 		}
-		seen = append(seen, remote.ID)
-	}
-	if err := r.inbounds.MarkStaleByPanel(ctx, panel.ID, seen); err != nil {
-		return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
-	}
-	panel.Status = models.PanelStatusOnline
-	if compat := client.Compatibility(); compat.Version != "" {
-		panel.Version = compat.Version
-	}
-	panel.LastError = ""
-	panel.LastSyncAt = &now
-	panel.UpdatedAt = now
-	if err := r.panels.Update(ctx, panel); err != nil {
-		return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
-	}
-	_ = r.logAudit(ctx, "admin", nil, "inbound_sync", "panel", &panel.ID, map[string]any{"status": "success", "count": len(remoteInbounds)})
-	finishedAt := time.Now().UTC()
-	return r.updateSyncJob(ctx, jobID, "success", "", &finishedAt)
-}
-
-func (r *Runner) startSyncJob(ctx context.Context, panelID int64, jobType string) (int64, error) {
-	result, err := r.db.ExecContext(ctx, `INSERT INTO sync_jobs (panel_id, job_type, status, started_at, created_at) VALUES (?, ?, ?, ?, ?)`, panelID, jobType, "running", time.Now().UTC(), time.Now().UTC())
-	if err != nil {
-		return 0, err
-	}
-	return result.LastInsertId()
+		client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+		client.SetUserAgent(r.cfg.AppName)
+		loginCtx, cancelLogin := context.WithTimeout(ctx, 10*time.Second)
+		defer cancelLogin()
+		if err := client.Login(loginCtx); err != nil {
+			return r.finishInboundSync(ctx, jobID, panel, classifyPanelError(err), err.Error(), err)
+		}
+		listCtx, cancelList := context.WithTimeout(ctx, 20*time.Second)
+		defer cancelList()
+		remoteInbounds, err := client.ListInbounds(listCtx)
+		if err != nil {
+			return r.finishInboundSync(ctx, jobID, panel, classifyPanelError(err), err.Error(), err)
+		}
+		now := time.Now().UTC()
+		seen := make([]int64, 0, len(remoteInbounds))
+		for _, remote := range remoteInbounds {
+			rawJSON, _ := json.Marshal(remote)
+			inbound := &models.Inbound{
+				PanelID:         panel.ID,
+				RemoteInboundID: remote.ID,
+				Remark:          remote.Remark,
+				Protocol:        remote.Protocol,
+				Port:            remote.Port,
+				Network:         remote.Network,
+				Security:        remote.Security,
+				Enabled:         remote.Enabled,
+				Stale:           false,
+				RawJSON:         string(rawJSON),
+				LastSyncedAt:    &now,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}
+			if err := r.inbounds.Upsert(ctx, inbound); err != nil {
+				return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
+			}
+			seen = append(seen, remote.ID)
+		}
+		if err := r.inbounds.MarkStaleByPanel(ctx, panel.ID, seen); err != nil {
+			return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
+		}
+		panel.Status = models.PanelStatusOnline
+		if compat := client.Compatibility(); compat.Version != "" {
+			panel.Version = compat.Version
+		}
+		panel.LastError = ""
+		panel.LastSyncAt = &now
+		panel.UpdatedAt = now
+		if err := r.panels.Update(ctx, panel); err != nil {
+			return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
+		}
+		_ = r.logAudit(ctx, "admin", nil, "inbound_sync", "panel", &panel.ID, map[string]any{"status": "success", "count": len(remoteInbounds)})
+		finishedAt := time.Now().UTC()
+		return r.updateSyncJob(ctx, jobID, "success", "", &finishedAt)
+	})
 }
 
 func (r *Runner) updateSyncJob(ctx context.Context, jobID int64, status, message string, finishedAt *time.Time) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE sync_jobs SET status = ?, message = ?, finished_at = ? WHERE id = ?`, status, message, finishedAt, jobID)
-	return err
+	job, err := r.syncJobs.FindByID(ctx, jobID)
+	if err != nil {
+		return err
+	}
+	job.Status = status
+	job.Message = message
+	job.FinishedAt = finishedAt
+	if finishedAt != nil {
+		job.FinishedAt = finishedAt
+	}
+	return r.syncJobs.Update(ctx, job)
 }
 
 func (r *Runner) finishInboundSync(ctx context.Context, jobID int64, panel *models.Panel, status, message string, cause error) error {

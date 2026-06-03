@@ -79,7 +79,7 @@ func (r *Runner) getAdminPanelDetail(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.Type("html").SendString(renderPanelDetailPage(panel, r.cfg.AppName, admin.Role))
+	return c.Type("html").SendString(renderPanelDetailPageV2(panel, r.cfg.AppName, admin.Role))
 }
 
 func (r *Runner) getAdminPanelEdit(c *fiber.Ctx) error {
@@ -188,6 +188,22 @@ func (r *Runner) postAdminPanelSync(c *fiber.Ctx) error {
 		return err
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_sync", "panel", &panel.ID, map[string]any{"status": panel.Status})
+	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
+}
+
+func (r *Runner) postAdminPanelSyncTraffic(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	panel, err := r.loadPanel(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	if err := r.syncPanelTraffic(c.UserContext(), panel); err != nil {
+		return err
+	}
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "traffic_sync", "panel", &panel.ID, map[string]any{"panel_id": panel.ID})
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
 }
 
@@ -347,6 +363,11 @@ func renderPanelListPage(panels []models.Panel, appName string, adminRole string
 
 func renderPanelDetailPage(panel *models.Panel, appName string, adminRole string) string {
 	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(panel.Name) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(panel.BaseURL) + `</p></div><div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Edit</a><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/test"><button class="btn btn-outline-primary btn-sm" type="submit">Test</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync"><button class="btn btn-outline-success btn-sm" type="submit">Sync</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/clear-session"><button class="btn btn-outline-warning btn-sm" type="submit">Clear session</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/delete" onsubmit="return confirm('Delete this panel?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div></div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel information</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">` + panelStatusBadge(panel.Status) + `</dd><dt class="col-sm-4">Username</dt><dd class="col-sm-8">` + html.EscapeString(panel.Username) + `</dd><dt class="col-sm-4">Version</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(panel.Version, "-")) + `</dd><dt class="col-sm-4">Last sync</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</dd><dt class="col-sm-4">Last error</dt><dd class="col-sm-8 text-danger">` + html.EscapeString(defaultString(panel.LastError, "-")) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Connection</div><div class="card-body"><div class="text-body-secondary small">Password is stored encrypted and never rendered back to the browser.</div><div class="mt-3"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Update credentials</a></div></div></div></div></div></div>`
+	return renderAdminShell(appName, adminRole, "panels", body)
+}
+
+func renderPanelDetailPageV2(panel *models.Panel, appName string, adminRole string) string {
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(panel.Name) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(panel.BaseURL) + `</p></div><div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Edit</a><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/test"><button class="btn btn-outline-primary btn-sm" type="submit">Test</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync"><button class="btn btn-outline-success btn-sm" type="submit">Sync</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/clear-session"><button class="btn btn-outline-warning btn-sm" type="submit">Clear session</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/delete" onsubmit="return confirm('Delete this panel?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div></div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel information</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">` + panelStatusBadge(panel.Status) + `</dd><dt class="col-sm-4">Username</dt><dd class="col-sm-8">` + html.EscapeString(panel.Username) + `</dd><dt class="col-sm-4">Version</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(panel.Version, "-")) + `</dd><dt class="col-sm-4">Last sync</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</dd><dt class="col-sm-4">Last error</dt><dd class="col-sm-8 text-danger">` + html.EscapeString(defaultString(panel.LastError, "-")) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel details</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Base URL</dt><dd class="col-sm-8">` + html.EscapeString(panel.BaseURL) + `</dd><dt class="col-sm-4">Created</dt><dd class="col-sm-8">` + html.EscapeString(panel.CreatedAt.UTC().Format(time.RFC3339)) + `</dd><dt class="col-sm-4">Updated</dt><dd class="col-sm-8">` + html.EscapeString(panel.UpdatedAt.UTC().Format(time.RFC3339)) + `</dd></dl></div></div></div></div></div>`
 	return renderAdminShell(appName, adminRole, "panels", body)
 }
 
