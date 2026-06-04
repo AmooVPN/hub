@@ -1,13 +1,20 @@
 package services
 
 import (
+	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/json"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPM/hub/internal/repositories"
 )
 
 type WebhookEnvelope struct {
@@ -27,6 +34,23 @@ const (
 	WebhookDeliveryRetrying WebhookDeliveryStatus = "retrying"
 )
 
+type WebhookHTTPClient interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
+type WebhookService struct {
+	webhooks   repositories.WebhookRepository
+	deliveries repositories.WebhookDeliveryRepository
+	client     WebhookHTTPClient
+	now        func() time.Time
+}
+
+const defaultWebhookRetryDelay = 5 * time.Minute
+
+func NewWebhookService(webhooks repositories.WebhookRepository, deliveries repositories.WebhookDeliveryRepository) *WebhookService {
+	return &WebhookService{webhooks: webhooks, deliveries: deliveries, client: http.DefaultClient, now: time.Now}
+}
+
 func SignWebhookPayload(secret, event, delivery string, timestamp time.Time, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(event))
@@ -43,3 +67,106 @@ func NewWebhookEnvelope(event, delivery string, payload any) WebhookEnvelope {
 }
 
 func IsSupportedWebhookEvent(event string) bool { return models.IsValidWebhookEvent(event) }
+
+func (s *WebhookService) Publish(ctx context.Context, event string, payload any) ([]models.WebhookDelivery, error) {
+	if s == nil || s.webhooks == nil || s.deliveries == nil {
+		return nil, errors.New("webhook service is not configured")
+	}
+	if !models.IsValidWebhookEvent(event) {
+		return nil, fmt.Errorf("invalid webhook event %q", event)
+	}
+	webhooks, err := s.webhooks.ListActiveByEvent(ctx, event)
+	if err != nil {
+		return nil, err
+	}
+	deliveries := make([]models.WebhookDelivery, 0, len(webhooks))
+	for i := range webhooks {
+		delivery, err := s.publishOne(ctx, webhooks[i], event, payload)
+		if err != nil {
+			return nil, err
+		}
+		deliveries = append(deliveries, delivery)
+	}
+	return deliveries, nil
+}
+
+func (s *WebhookService) publishOne(ctx context.Context, webhook models.Webhook, event string, payload any) (models.WebhookDelivery, error) {
+	now := s.now
+	if now == nil {
+		now = time.Now
+	}
+	delivery := models.WebhookDelivery{
+		WebhookID:   webhook.ID,
+		EventType:    event,
+		Status:       string(WebhookDeliveryQueued),
+		Attempts:     0,
+		CreatedAt:    now().UTC(),
+	}
+	if err := s.deliveries.Create(ctx, &delivery); err != nil {
+		return models.WebhookDelivery{}, err
+	}
+	timestamp := now().UTC()
+	envelope := WebhookEnvelope{Event: event, Delivery: fmt.Sprintf("%d", delivery.ID), Timestamp: timestamp, Payload: payload}
+	body, err := json.Marshal(envelope)
+	if err != nil {
+		return s.failDelivery(ctx, delivery, timestamp.Add(defaultWebhookRetryDelay), err.Error())
+	}
+	delivery.PayloadJSON = string(body)
+	delivery.Status = string(WebhookDeliveryRunning)
+	delivery.Attempts = 1
+	if err := s.deliveries.Update(ctx, &delivery); err != nil {
+		return models.WebhookDelivery{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhook.URL, bytes.NewReader(body))
+	if err != nil {
+		return s.failDelivery(ctx, delivery, timestamp.Add(defaultWebhookRetryDelay), err.Error())
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Ahub-Event", event)
+	req.Header.Set("X-Ahub-Delivery", fmt.Sprintf("%d", delivery.ID))
+	req.Header.Set("X-Ahub-Timestamp", fmt.Sprintf("%d", timestamp.Unix()))
+	req.Header.Set("X-Ahub-Signature", SignWebhookPayload(webhook.Secret, event, fmt.Sprintf("%d", delivery.ID), timestamp, body))
+	client := s.client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return s.failDelivery(ctx, delivery, timestamp.Add(defaultWebhookRetryDelay), err.Error())
+	}
+	defer resp.Body.Close()
+	responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	delivery.ResponseBody = string(responseBody)
+	statusCode := resp.StatusCode
+	delivery.ResponseStatus = &statusCode
+	if statusCode >= 200 && statusCode < 300 {
+		delivery.Status = string(WebhookDeliverySuccess)
+		done := now().UTC()
+		delivery.DeliveredAt = &done
+		delivery.ErrorMessage = ""
+		delivery.NextRetryAt = nil
+	} else {
+		message := fmt.Sprintf("unexpected webhook response %d", statusCode)
+		if len(responseBody) > 0 {
+			message = message + ": " + string(responseBody)
+		}
+		return s.failDelivery(ctx, delivery, timestamp.Add(defaultWebhookRetryDelay), message)
+	}
+	if err := s.deliveries.Update(ctx, &delivery); err != nil {
+		return models.WebhookDelivery{}, err
+	}
+	return delivery, nil
+}
+
+func (s *WebhookService) failDelivery(ctx context.Context, delivery models.WebhookDelivery, nextRetryAt time.Time, message string) (models.WebhookDelivery, error) {
+	delivery.Status = string(WebhookDeliveryFailed)
+	delivery.ErrorMessage = message
+	delivery.NextRetryAt = &nextRetryAt
+	if delivery.Attempts <= 0 {
+		delivery.Attempts = 1
+	}
+	if err := s.deliveries.Update(ctx, &delivery); err != nil {
+		return models.WebhookDelivery{}, err
+	}
+	return delivery, nil
+}

@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -70,6 +71,22 @@ type RefreshTokenRepository interface {
 	RevokeByHash(context.Context, string) error
 }
 
+type WebhookRepository interface {
+	Create(context.Context, *models.Webhook) error
+	Update(context.Context, *models.Webhook) error
+	Delete(context.Context, int64) error
+	FindByID(context.Context, int64) (*models.Webhook, error)
+	List(context.Context) ([]models.Webhook, error)
+	ListActiveByEvent(context.Context, string) ([]models.Webhook, error)
+}
+
+type WebhookDeliveryRepository interface {
+	Create(context.Context, *models.WebhookDelivery) error
+	Update(context.Context, *models.WebhookDelivery) error
+	FindByID(context.Context, int64) (*models.WebhookDelivery, error)
+	ListByWebhook(context.Context, int64) ([]models.WebhookDelivery, error)
+}
+
 type sqliteAdminRepository struct{ db *sql.DB }
 type sqliteClientRepository struct{ db *sql.DB }
 type sqlitePanelRepository struct{ db *sql.DB }
@@ -77,6 +94,8 @@ type sqliteAuditRepository struct{ db *sql.DB }
 type sqliteSyncJobRepository struct{ db *sql.DB }
 type sqliteRefreshTokenRepository struct{ db *sql.DB }
 type sqliteInboundRepository struct{ db *sql.DB }
+type sqliteWebhookRepository struct{ db *sql.DB }
+type sqliteWebhookDeliveryRepository struct{ db *sql.DB }
 
 func NewAdminRepository(db *sql.DB) AdminRepository     { return &sqliteAdminRepository{db: db} }
 func NewClientRepository(db *sql.DB) ClientRepository   { return &sqliteClientRepository{db: db} }
@@ -87,6 +106,10 @@ func NewRefreshTokenRepository(db *sql.DB) RefreshTokenRepository {
 	return &sqliteRefreshTokenRepository{db: db}
 }
 func NewInboundRepository(db *sql.DB) InboundRepository { return &sqliteInboundRepository{db: db} }
+func NewWebhookRepository(db *sql.DB) WebhookRepository { return &sqliteWebhookRepository{db: db} }
+func NewWebhookDeliveryRepository(db *sql.DB) WebhookDeliveryRepository {
+	return &sqliteWebhookDeliveryRepository{db: db}
+}
 
 func (r *sqliteAdminRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
@@ -671,6 +694,13 @@ func nullString(value string) any {
 	return value
 }
 
+func nullInt(value *int) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
 func nullTime(value *time.Time) any {
 	if value == nil {
 		return nil
@@ -699,4 +729,200 @@ func parseSQLiteTime(value string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("parse sqlite time %q", value)
+}
+
+func (r *sqliteWebhookRepository) Create(ctx context.Context, webhook *models.Webhook) error {
+	if webhook == nil {
+		return errors.New("webhook is nil")
+	}
+	if webhook.CreatedAt.IsZero() {
+		webhook.CreatedAt = time.Now().UTC()
+	}
+	if webhook.UpdatedAt.IsZero() {
+		webhook.UpdatedAt = webhook.CreatedAt
+	}
+	events, err := json.Marshal(webhook.Events)
+	if err != nil {
+		return err
+	}
+	result, err := r.db.ExecContext(ctx, `INSERT INTO webhooks (name, url, secret, active, events, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, webhook.Name, webhook.URL, webhook.Secret, boolToInt(webhook.Active), string(events), webhook.CreatedAt.UTC(), webhook.UpdatedAt.UTC())
+	if err != nil {
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	webhook.ID = id
+	return nil
+}
+
+func (r *sqliteWebhookRepository) Update(ctx context.Context, webhook *models.Webhook) error {
+	if webhook == nil {
+		return errors.New("webhook is nil")
+	}
+	if webhook.UpdatedAt.IsZero() {
+		webhook.UpdatedAt = time.Now().UTC()
+	}
+	events, err := json.Marshal(webhook.Events)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `UPDATE webhooks SET name = ?, url = ?, secret = ?, active = ?, events = ?, updated_at = ? WHERE id = ?`, webhook.Name, webhook.URL, webhook.Secret, boolToInt(webhook.Active), string(events), webhook.UpdatedAt.UTC(), webhook.ID)
+	return err
+}
+
+func (r *sqliteWebhookRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM webhooks WHERE id = ?`, id)
+	return err
+}
+
+func (r *sqliteWebhookRepository) FindByID(ctx context.Context, id int64) (*models.Webhook, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, name, url, secret, active, events, created_at, updated_at FROM webhooks WHERE id = ?`, id)
+	return scanWebhook(row)
+}
+
+func (r *sqliteWebhookRepository) List(ctx context.Context) ([]models.Webhook, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, url, secret, active, events, created_at, updated_at FROM webhooks ORDER BY id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.Webhook, 0)
+	for rows.Next() {
+		webhook, err := scanWebhook(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *webhook)
+	}
+	return items, rows.Err()
+}
+
+func (r *sqliteWebhookRepository) ListActiveByEvent(ctx context.Context, event string) ([]models.Webhook, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, url, secret, active, events, created_at, updated_at FROM webhooks WHERE active = 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.Webhook, 0)
+	for rows.Next() {
+		webhook, err := scanWebhook(rows)
+		if err != nil {
+			return nil, err
+		}
+		if containsString(webhook.Events, event) {
+			items = append(items, *webhook)
+		}
+	}
+	return items, rows.Err()
+}
+
+func scanWebhook(scanner interface{ Scan(...any) error }) (*models.Webhook, error) {
+	var webhook models.Webhook
+	var active int
+	var events string
+	if err := scanner.Scan(&webhook.ID, &webhook.Name, &webhook.URL, &webhook.Secret, &active, &events, &webhook.CreatedAt, &webhook.UpdatedAt); err != nil {
+		return nil, err
+	}
+	webhook.Active = active != 0
+	if err := json.Unmarshal([]byte(events), &webhook.Events); err != nil {
+		webhook.Events = splitCSV(events)
+	}
+	return &webhook, nil
+}
+
+func (r *sqliteWebhookDeliveryRepository) Create(ctx context.Context, delivery *models.WebhookDelivery) error {
+	if delivery == nil {
+		return errors.New("webhook delivery is nil")
+	}
+	if delivery.CreatedAt.IsZero() {
+		delivery.CreatedAt = time.Now().UTC()
+	}
+	result, err := r.db.ExecContext(ctx, `INSERT INTO webhook_deliveries (webhook_id, event_type, payload_json, status, response_status, response_body, error_message, attempts, next_retry_at, created_at, delivered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, delivery.WebhookID, delivery.EventType, delivery.PayloadJSON, delivery.Status, nullInt(delivery.ResponseStatus), nullString(delivery.ResponseBody), nullString(delivery.ErrorMessage), delivery.Attempts, nullTime(delivery.NextRetryAt), delivery.CreatedAt.UTC(), nullTime(delivery.DeliveredAt))
+	if err != nil {
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	delivery.ID = id
+	return nil
+}
+
+func (r *sqliteWebhookDeliveryRepository) Update(ctx context.Context, delivery *models.WebhookDelivery) error {
+	if delivery == nil {
+		return errors.New("webhook delivery is nil")
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE webhook_deliveries SET webhook_id = ?, event_type = ?, payload_json = ?, status = ?, response_status = ?, response_body = ?, error_message = ?, attempts = ?, next_retry_at = ?, delivered_at = ? WHERE id = ?`, delivery.WebhookID, delivery.EventType, delivery.PayloadJSON, delivery.Status, nullInt(delivery.ResponseStatus), nullString(delivery.ResponseBody), nullString(delivery.ErrorMessage), delivery.Attempts, nullTime(delivery.NextRetryAt), nullTime(delivery.DeliveredAt), delivery.ID)
+	return err
+}
+
+func (r *sqliteWebhookDeliveryRepository) FindByID(ctx context.Context, id int64) (*models.WebhookDelivery, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, webhook_id, event_type, payload_json, status, response_status, response_body, error_message, attempts, next_retry_at, created_at, delivered_at FROM webhook_deliveries WHERE id = ?`, id)
+	return scanWebhookDelivery(row)
+}
+
+func (r *sqliteWebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID int64) ([]models.WebhookDelivery, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id, webhook_id, event_type, payload_json, status, response_status, response_body, error_message, attempts, next_retry_at, created_at, delivered_at FROM webhook_deliveries WHERE webhook_id = ? ORDER BY id DESC`, webhookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.WebhookDelivery, 0)
+	for rows.Next() {
+		delivery, err := scanWebhookDelivery(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *delivery)
+	}
+	return items, rows.Err()
+}
+
+func scanWebhookDelivery(scanner interface{ Scan(...any) error }) (*models.WebhookDelivery, error) {
+	var delivery models.WebhookDelivery
+	var responseStatus sql.NullInt64
+	var responseBody, errorMessage sql.NullString
+	var nextRetryAt, deliveredAt sql.NullTime
+	if err := scanner.Scan(&delivery.ID, &delivery.WebhookID, &delivery.EventType, &delivery.PayloadJSON, &delivery.Status, &responseStatus, &responseBody, &errorMessage, &delivery.Attempts, &nextRetryAt, &delivery.CreatedAt, &deliveredAt); err != nil {
+		return nil, err
+	}
+	if responseStatus.Valid {
+		v := int(responseStatus.Int64)
+		delivery.ResponseStatus = &v
+	}
+	delivery.ResponseBody = responseBody.String
+	delivery.ErrorMessage = errorMessage.String
+	if nextRetryAt.Valid {
+		t := nextRetryAt.Time
+		delivery.NextRetryAt = &t
+	}
+	if deliveredAt.Valid {
+		t := deliveredAt.Time
+		delivery.DeliveredAt = &t
+	}
+	return &delivery, nil
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if strings.EqualFold(strings.TrimSpace(item), strings.TrimSpace(target)) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			items = append(items, part)
+		}
+	}
+	return items
 }

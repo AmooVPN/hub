@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/AmooVPM/hub/internal/models"
 	"github.com/AmooVPM/hub/internal/security"
 	"github.com/AmooVPM/hub/internal/services"
 )
@@ -53,6 +54,9 @@ func (r *Runner) getAdminBackupsExport(c *fiber.Ctx) error {
 		}
 	} else if len(deleted) > 0 && r.logger != nil {
 		r.logger.Info("backup retention cleanup completed", "deleted", len(deleted))
+	}
+	if r.webhooks != nil {
+		_, _ = r.webhooks.Publish(ctx, models.WebhookEventBackupExported, map[string]any{"filename": rec.Name, "size": rec.Size, "created_at": rec.ModifiedAt.UTC()})
 	}
 	path, err := r.backups.Path(r.cfg.BackupDir, rec.Name)
 	if err != nil {
@@ -135,6 +139,9 @@ func (r *Runner) postAdminBackupsImport(c *fiber.Ctx) error {
 	}
 	if r.metrics != nil {
 		r.metrics.IncBackupImport()
+	}
+	if r.webhooks != nil {
+		_, _ = r.webhooks.Publish(c.UserContext(), models.WebhookEventBackupImported, map[string]any{"filename": file.Filename, "app": result.Metadata.App, "schema_version": result.Metadata.SchemaVersion, "safety_backup": result.SafetyBackup.Name, "staged_file": result.StagedName})
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "backup_import_prepare", "backup", nil, map[string]any{"filename": file.Filename, "app": result.Metadata.App, "schema_version": result.Metadata.SchemaVersion, "safety_backup": result.SafetyBackup.Name, "staged_file": result.StagedName})
 	items, err := r.backups.List(r.cfg.BackupDir)

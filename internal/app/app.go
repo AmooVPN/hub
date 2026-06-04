@@ -40,6 +40,7 @@ type Runner struct {
 	panelHealth    *services.HealthService
 	backups        *services.BackupService
 	audit          repositories.AuditRepository
+	webhooks       *services.WebhookService
 	logger         *slog.Logger
 	loginLocks     *attemptTracker
 	server         *fiber.App
@@ -85,6 +86,8 @@ func New(logger *slog.Logger) (*Runner, error) {
 	inbounds := repositories.NewInboundRepository(db)
 	syncJobs := repositories.NewSyncJobRepository(db)
 	audit := repositories.NewAuditRepository(db)
+	webhookDefs := repositories.NewWebhookRepository(db)
+	webhookDeliveries := repositories.NewWebhookDeliveryRepository(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -109,6 +112,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		panelHealth:    services.NewHealthService(services.NewXUIHealthProbe(cfg.AppName, cfg.HUBSecretKey)),
 		backups:        services.NewBackupService(),
 		audit:          audit,
+		webhooks:       services.NewWebhookService(webhookDefs, webhookDeliveries),
 		logger:         logger,
 		loginLocks:     newAttemptTracker(5, 15*time.Minute),
 	}

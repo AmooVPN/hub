@@ -1,6 +1,9 @@
 package models
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	WebhookEventClientCreated                = "client.created"
@@ -43,4 +46,30 @@ func IsValidNotificationSeverity(severity string) bool {
 	default:
 		return false
 	}
+}
+
+type Webhook struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	URL       string    `json:"url"`
+	Secret    string    `json:"-"`
+	Active    bool      `json:"active"`
+	Events    []string  `json:"events"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type WebhookDelivery struct {
+	ID             int64      `json:"id"`
+	WebhookID      int64      `json:"webhook_id"`
+	EventType      string     `json:"event_type"`
+	PayloadJSON    string     `json:"payload_json"`
+	Status         string     `json:"status"`
+	ResponseStatus *int       `json:"response_status,omitempty"`
+	ResponseBody   string     `json:"response_body,omitempty"`
+	ErrorMessage   string     `json:"error_message,omitempty"`
+	Attempts       int        `json:"attempts"`
+	NextRetryAt    *time.Time `json:"next_retry_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
 }
