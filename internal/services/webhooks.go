@@ -5,8 +5,8 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -175,11 +175,11 @@ func (s *WebhookService) DeliverToWebhook(ctx context.Context, webhook models.We
 		now = time.Now
 	}
 	delivery := models.WebhookDelivery{
-		WebhookID:   webhook.ID,
-		EventType:    event,
-		Status:       string(WebhookDeliveryQueued),
-		Attempts:     0,
-		CreatedAt:    now().UTC(),
+		WebhookID: webhook.ID,
+		EventType: event,
+		Status:    string(WebhookDeliveryQueued),
+		Attempts:  0,
+		CreatedAt: now().UTC(),
 	}
 	if err := s.deliveries.Create(ctx, &delivery); err != nil {
 		return models.WebhookDelivery{}, err
@@ -205,6 +205,9 @@ func (s *WebhookService) DeliverToWebhook(ctx context.Context, webhook models.We
 	req.Header.Set("X-Ahub-Delivery", fmt.Sprintf("%d", delivery.ID))
 	req.Header.Set("X-Ahub-Timestamp", fmt.Sprintf("%d", timestamp.Unix()))
 	req.Header.Set("X-Ahub-Signature", SignWebhookPayload(webhook.Secret, event, fmt.Sprintf("%d", delivery.ID), timestamp, body))
+	if requestID := RequestIDFromContext(ctx); requestID != "" {
+		req.Header.Set("X-Request-ID", requestID)
+	}
 	client := s.client
 	if client == nil {
 		client = http.DefaultClient
@@ -262,6 +265,9 @@ func (s *WebhookService) retryDelivery(ctx context.Context, webhook *models.Webh
 	req.Header.Set("X-Ahub-Delivery", fmt.Sprintf("%d", delivery.ID))
 	req.Header.Set("X-Ahub-Timestamp", fmt.Sprintf("%d", timestamp.Unix()))
 	req.Header.Set("X-Ahub-Signature", SignWebhookPayload(webhook.Secret, delivery.EventType, fmt.Sprintf("%d", delivery.ID), timestamp, body))
+	if requestID := RequestIDFromContext(ctx); requestID != "" {
+		req.Header.Set("X-Request-ID", requestID)
+	}
 	client := s.client
 	if client == nil {
 		client = http.DefaultClient

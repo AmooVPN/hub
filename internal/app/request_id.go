@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPM/hub/internal/services"
 )
 
 func (r *Runner) requestIDMiddleware() fiber.Handler {
@@ -24,6 +25,7 @@ func (r *Runner) requestIDMiddleware() fiber.Handler {
 		c.Set("X-Correlation-ID", correlationID)
 		c.Locals("request_id", requestID)
 		c.Locals("correlation_id", correlationID)
+		c.SetUserContext(services.WithRequestID(c.UserContext(), requestID))
 		return c.Next()
 	}
 }

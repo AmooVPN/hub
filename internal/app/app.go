@@ -40,6 +40,7 @@ type Runner struct {
 	metrics        *services.MetricsCollector
 	panelHealth    *services.HealthService
 	backups        *services.BackupService
+	cleanup        *services.CleanupService
 	audit          repositories.AuditRepository
 	webhooks       *services.WebhookService
 	notifications  *services.NotificationService
@@ -94,6 +95,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 	webhookDefs := repositories.NewWebhookRepository(db)
 	webhookDeliveries := repositories.NewWebhookDeliveryRepository(db)
 	notifications := repositories.NewNotificationRepository(db)
+	backupService := services.NewBackupService()
 	telegram := services.NewTelegramNotifier(cfg.TelegramBotToken, cfg.TelegramChatID)
 	email := services.NewEmailNotifier(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom)
 
@@ -119,7 +121,8 @@ func New(logger *slog.Logger) (*Runner, error) {
 		backgroundJobs: services.NewBackgroundJobRunner(syncJobs, 2),
 		metrics:        services.NewMetricsCollector(),
 		panelHealth:    services.NewHealthService(services.NewXUIHealthProbe(cfg.AppName, cfg.HUBSecretKey)),
-		backups:        services.NewBackupService(),
+		backups:        backupService,
+		cleanup:        services.NewCleanupService(db, syncJobs, backupService),
 		audit:          audit,
 		webhooks:       services.NewWebhookService(webhookDefs, webhookDeliveries),
 		notifications:  services.NewNotificationService(notifications, telegram, email),
@@ -191,6 +194,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/notifications/read-all", security.RequirePermission(security.PermissionViewDashboard), r.postAdminNotificationsReadAll)
 	app.Post("/admin/settings/telegram/test", security.RequirePermission(security.PermissionManageSettings), r.postAdminTelegramTest)
 	app.Post("/admin/settings/email/test", security.RequirePermission(security.PermissionManageSettings), r.postAdminEmailTest)
+	app.Post("/admin/settings/cleanup", security.RequirePermission(security.PermissionManageSettings), r.postAdminCleanup)
 	app.Get("/admin/webhooks", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhooks)
 	app.Get("/admin/webhooks/new", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhookNew)
 	app.Post("/admin/webhooks", security.RequirePermission(security.PermissionManageSettings), r.postAdminWebhookCreate)
@@ -286,10 +290,20 @@ func (r *Runner) errorHandler(c *fiber.Ctx, err error) error {
 	if errors.As(err, &fiberErr) {
 		code = fiberErr.Code
 	}
-	if c.Path() == "/healthz" {
-		return c.Status(code).JSON(fiber.Map{"error": err.Error()})
+	requestID := services.RequestIDFromContext(c.UserContext())
+	if requestID != "" {
+		c.Set("X-Request-ID", requestID)
 	}
-	return c.Status(code).Type("html").SendString(renderPage("Error", `<div class="container py-5"><div class="alert alert-danger">`+html.EscapeString(err.Error())+`</div></div>`))
+	if strings.HasPrefix(c.Path(), "/api/") {
+		return c.Status(code).JSON(fiber.Map{"error": fiber.Map{"code": strconv.Itoa(code), "message": err.Error(), "request_id": requestID}})
+	}
+	scope := "public"
+	if strings.HasPrefix(c.Path(), "/admin/") {
+		scope = "admin"
+	} else if strings.HasPrefix(c.Path(), "/client/") {
+		scope = "client"
+	}
+	return c.Status(code).Type("html").SendString(renderErrorPage(errorTitleForStatus(code), errorMessageForScope(code, scope), requestID))
 }
 
 func (r *Runner) home(c *fiber.Ctx) error {

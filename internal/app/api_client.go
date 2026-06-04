@@ -12,12 +12,14 @@ import (
 
 	"github.com/AmooVPM/hub/internal/models"
 	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPM/hub/internal/services"
 )
 
 type apiErrorEnvelope struct {
 	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
+		Code      string `json:"code"`
+		Message   string `json:"message"`
+		RequestID string `json:"request_id,omitempty"`
 	} `json:"error"`
 }
 
@@ -367,8 +369,12 @@ func (r *Runner) issueClientTokens(ctx context.Context, client *models.Client, u
 }
 
 func apiError(c *fiber.Ctx, status int, code, message string) error {
-	return c.Status(status).JSON(apiErrorEnvelope{Error: struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}{Code: code, Message: message}})
+	envelope := apiErrorEnvelope{}
+	envelope.Error.Code = code
+	envelope.Error.Message = message
+	envelope.Error.RequestID = services.RequestIDFromContext(c.UserContext())
+	if envelope.Error.RequestID != "" {
+		c.Set("X-Request-ID", envelope.Error.RequestID)
+	}
+	return c.Status(status).JSON(envelope)
 }

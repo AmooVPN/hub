@@ -736,7 +736,7 @@ func (r *Runner) loadClientAudits(ctx context.Context, clientID int64) ([]models
 	if r.audit == nil {
 		return nil, nil
 	}
-	return r.audit.ListByTarget(ctx, "client", clientID, 25)
+	return r.audit.ListByTarget(ctx, "client", clientID, 20)
 }
 
 func (r *Runner) loadInboundOptions(ctx context.Context) ([]inboundGroup, error) {

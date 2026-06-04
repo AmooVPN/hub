@@ -3832,10 +3832,10 @@ X-Request-ID
 
 Tasks:
 
-* [ ] Generate request ID if missing.
-* [ ] Include in logs.
-* [ ] Include in API error responses optionally.
-* [ ] Forward to webhook delivery logs.
+* [x] Generate request ID if missing.
+* [x] Include in logs.
+* [x] Include in API error responses optionally.
+* [x] Forward to webhook delivery logs.
 
 ---
 
@@ -3854,10 +3854,10 @@ Create error pages:
 
 Tasks:
 
-* [ ] Add public error layout.
-* [ ] Add admin-safe error rendering.
-* [ ] Add client-safe error rendering.
-* [ ] For API, always return JSON.
+* [x] Add public error layout.
+* [x] Add admin-safe error rendering.
+* [x] Add client-safe error rendering.
+* [x] For API, always return JSON.
 
 ---
 
@@ -3867,8 +3867,8 @@ On client detail page, show recent audit events related to that client.
 
 Tasks:
 
-* [ ] Query audit logs by target.
-* [ ] Show recent 20 events.
+* [x] Query audit logs by target.
+* [x] Show recent 20 events.
 * [ ] Add “View all” link.
 
 ---
@@ -3887,8 +3887,8 @@ Cleanup:
 
 Tasks:
 
-* [ ] Add cleanup service.
-* [ ] Add manual cleanup action.
+* [x] Add cleanup service.
+* [x] Add manual cleanup action.
 * [ ] Add scheduled cleanup later.
 
 ---
