@@ -29,6 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/AmooVPM/hub/master/install.sh | sh
 ```
 
 The installer checks for `git` first and installs it on supported Linux distros if it is missing.
+`sh -n install.sh` only checks syntax; it does not run the installer.
+By default it installs into `$XDG_DATA_HOME/ahub` or `~/.local/share/ahub`.
 2. Create env and docker files:
 
 ```bash

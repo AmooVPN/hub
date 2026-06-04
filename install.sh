@@ -2,7 +2,7 @@
 set -eu
 
 REPO_URL=${AHUB_REPO:-https://github.com/AmooVPM/hub.git}
-INSTALL_DIR=${AHUB_DIR:-/opt/ahub}
+INSTALL_DIR=${AHUB_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ahub}
 
 run_as_root() {
 	if [ "$(id -u)" -eq 0 ]; then
