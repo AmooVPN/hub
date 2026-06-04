@@ -22,7 +22,13 @@ Central multi-panel management hub for 3x-ui / Xray deployments.
 - Placeholder: add screenshots of the dashboard, client portal, and admin forms.
 
 ## Quick Start
-1. Install `ahub`.
+1. Install `ahub`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AmooVPM/hub/master/install.sh | sh
+```
+
+The installer checks for `git` first and installs it on supported Linux distros if it is missing.
 2. Create env and docker files:
 
 ```bash

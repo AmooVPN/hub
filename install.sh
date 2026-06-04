@@ -4,14 +4,58 @@ set -eu
 REPO_URL=${AHUB_REPO:-https://github.com/AmooVPM/hub.git}
 INSTALL_DIR=${AHUB_DIR:-/opt/ahub}
 
+run_as_root() {
+	if [ "$(id -u)" -eq 0 ]; then
+		"$@"
+		return
+	fi
+	if command -v sudo >/dev/null 2>&1; then
+		sudo "$@"
+		return
+	fi
+	echo "sudo is required to install git" >&2
+	exit 1
+}
+
+install_git() {
+	if [ -r /etc/os-release ]; then
+		. /etc/os-release
+	fi
+	case "${ID:-}" in
+		ubuntu|debian|linuxmint|pop|elementary)
+			run_as_root apt-get update
+			run_as_root apt-get install -y git
+			;;
+		fedora|rhel|centos|rocky|almalinux)
+			if command -v dnf >/dev/null 2>&1; then
+				run_as_root dnf install -y git
+			else
+				run_as_root yum install -y git
+			fi
+			;;
+		arch|manjaro)
+			run_as_root pacman -Sy --noconfirm git
+			;;
+		alpine)
+			run_as_root apk add --no-cache git
+			;;
+		sles|suse|opensuse*|opensuse)
+			run_as_root zypper --non-interactive install git
+			;;
+		*)
+			echo "git is required and automatic installation is not supported on this distro" >&2
+			exit 1
+			;;
+	esac
+}
+
 if ! command -v docker >/dev/null 2>&1; then
 	echo "docker is required" >&2
 	exit 1
 fi
 
 if ! command -v git >/dev/null 2>&1; then
-	echo "git is required" >&2
-	exit 1
+	install_git
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
