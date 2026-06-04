@@ -54,6 +54,7 @@ var migrations = []Migration{
 				base_url TEXT NOT NULL UNIQUE,
 				username TEXT NOT NULL,
 				encrypted_password TEXT NOT NULL,
+				encrypted_api_token TEXT,
 				version TEXT,
 				status TEXT NOT NULL,
 				last_sync_at DATETIME,
@@ -217,6 +218,13 @@ var migrations = []Migration{
 			);`,
 		},
 	},
+	{
+		Version: 8,
+		Name:    "add_panel_api_token",
+		SQL: []string{
+			`ALTER TABLE panels ADD COLUMN encrypted_api_token TEXT;`,
+		},
+	},
 }
 
 func RunMigrations(db *sql.DB) error {
@@ -307,6 +315,19 @@ func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error 
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if migration.Version == 8 {
+		exists, err := columnExists(ctx, tx, "panels", "encrypted_api_token")
+		if err != nil {
+			return err
+		}
+		if exists {
+			if err := recordMigration(ctx, tx, migration.Version); err != nil {
+				return err
+			}
+			return tx.Commit()
+		}
+	}
+
 	for _, statement := range migration.SQL {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("apply migration %d (%s): %w", migration.Version, migration.Name, err)
@@ -319,6 +340,41 @@ func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error 
 		return err
 	}
 	return nil
+}
+
+func recordMigration(ctx context.Context, execer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, version int) error {
+	if _, err := execer.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, version, time.Now().UTC()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func columnExists(ctx context.Context, queryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, table, column string) (bool, error) {
+	rows, err := queryer.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notnull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func ValidateSchemaVersion(db *sql.DB) error {

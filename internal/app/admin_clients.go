@@ -780,12 +780,12 @@ func (r *Runner) loadInboundOptions(ctx context.Context) ([]inboundGroup, error)
 }
 
 func (r *Runner) attachClientToInbound(ctx context.Context, client *models.Client, panel *models.Panel, inbound *models.Inbound) (*models.ClientAttachment, error) {
-	password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+	password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, r.cfg.HUBSecretKey)
 	if err != nil {
 		return nil, err
 	}
 	remoteID := remoteAttachmentIdentity(client, inbound)
-	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 	xuiClient.SetUserAgent(r.cfg.AppName)
 	loginCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -834,11 +834,11 @@ func (r *Runner) deleteRemoteAttachment(ctx context.Context, client *models.Clie
 	if attachment.RemoteClientID == "" {
 		return nil
 	}
-	password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+	password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, r.cfg.HUBSecretKey)
 	if err != nil {
 		return err
 	}
-	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 	xuiClient.SetUserAgent(r.cfg.AppName)
 	loginCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -887,11 +887,11 @@ func (r *Runner) updateRemoteAttachmentEnabled(ctx context.Context, panel *model
 	if attachment == nil || attachment.RemoteClientID == "" {
 		return nil
 	}
-	password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+	password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, r.cfg.HUBSecretKey)
 	if err != nil {
 		return err
 	}
-	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 	xuiClient.SetUserAgent(r.cfg.AppName)
 	loginCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -907,11 +907,11 @@ func (r *Runner) syncAttachmentTraffic(ctx context.Context, panel *models.Panel,
 	if attachment == nil || attachment.RemoteClientID == "" {
 		return nil, errors.New("attachment is missing remote client id")
 	}
-	password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+	password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, r.cfg.HUBSecretKey)
 	if err != nil {
 		return nil, err
 	}
-	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+	xuiClient := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 	xuiClient.SetUserAgent(r.cfg.AppName)
 	loginCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

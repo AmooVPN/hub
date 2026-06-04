@@ -105,6 +105,7 @@ The compose file starts `hub` and `redis` with persistent volumes for `./data` a
 - Open `/admin/panels/new`.
 - Provide the panel base URL, username, and password.
 - Only `http` and `https` panel URLs are accepted.
+- If the panel exposes an API token, you can use that instead of username/password for panel API access.
 
 ### Sync Inbounds
 - Open a panel detail page.

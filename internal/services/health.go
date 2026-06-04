@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/AmooVPN/hub/internal/models"
@@ -51,11 +52,11 @@ func (p *XUIHealthProbe) Probe(ctx context.Context, panel *models.Panel) (PanelH
 	if panel == nil {
 		return PanelHealthResult{}, errors.New("panel is nil")
 	}
-	password, err := security.Decrypt(panel.EncryptedPassword, p.Secret)
+	password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, p.Secret)
 	if err != nil {
 		return PanelHealthResult{Status: models.PanelStatusError, Message: err.Error()}, err
 	}
-	client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+	client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 	client.SetUserAgent(p.AppName)
 	loginCtx, cancelLogin := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelLogin()
@@ -82,4 +83,23 @@ func classifyHealthStatus(err error) string {
 		return models.PanelStatusDegraded
 	}
 	return models.PanelStatusError
+}
+
+func decryptPanelCredentials(encryptedPassword, encryptedAPIToken, secret string) (string, string, error) {
+	password, err := decryptPanelSecretValue(encryptedPassword, secret)
+	if err != nil {
+		return "", "", err
+	}
+	apiToken, err := decryptPanelSecretValue(encryptedAPIToken, secret)
+	if err != nil {
+		return "", "", err
+	}
+	return password, apiToken, nil
+}
+
+func decryptPanelSecretValue(encrypted, secret string) (string, error) {
+	if strings.TrimSpace(encrypted) == "" {
+		return "", nil
+	}
+	return security.Decrypt(encrypted, secret)
 }

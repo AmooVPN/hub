@@ -329,7 +329,7 @@ func (r *sqlitePanelRepository) Create(ctx context.Context, panel *models.Panel)
 	if panel.UpdatedAt.IsZero() {
 		panel.UpdatedAt = panel.CreatedAt
 	}
-	result, err := r.db.ExecContext(ctx, `INSERT INTO panels (name, base_url, username, encrypted_password, version, status, last_sync_at, last_checked_at, last_error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, panel.Name, panel.BaseURL, panel.Username, panel.EncryptedPassword, nullString(panel.Version), panel.Status, nullTime(panel.LastSyncAt), nullTime(panel.LastCheckedAt), nullString(panel.LastError), panel.CreatedAt.UTC(), panel.UpdatedAt.UTC())
+	result, err := r.db.ExecContext(ctx, `INSERT INTO panels (name, base_url, username, encrypted_password, encrypted_api_token, version, status, last_sync_at, last_checked_at, last_error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, panel.Name, panel.BaseURL, panel.Username, panel.EncryptedPassword, nullString(panel.EncryptedAPIToken), nullString(panel.Version), panel.Status, nullTime(panel.LastSyncAt), nullTime(panel.LastCheckedAt), nullString(panel.LastError), panel.CreatedAt.UTC(), panel.UpdatedAt.UTC())
 	if err != nil {
 		return err
 	}
@@ -342,14 +342,15 @@ func (r *sqlitePanelRepository) Create(ctx context.Context, panel *models.Panel)
 }
 
 func (r *sqlitePanelRepository) FindByID(ctx context.Context, id int64) (*models.Panel, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT id, name, base_url, username, encrypted_password, version, status, last_sync_at, last_checked_at, last_error, created_at, updated_at FROM panels WHERE id = ?`, id)
+	row := r.db.QueryRowContext(ctx, `SELECT id, name, base_url, username, encrypted_password, encrypted_api_token, version, status, last_sync_at, last_checked_at, last_error, created_at, updated_at FROM panels WHERE id = ?`, id)
 	var panel models.Panel
-	var version, lastError sql.NullString
+	var apiToken, version, lastError sql.NullString
 	var lastSyncAt sql.NullTime
 	var lastCheckedAt sql.NullTime
-	if err := row.Scan(&panel.ID, &panel.Name, &panel.BaseURL, &panel.Username, &panel.EncryptedPassword, &version, &panel.Status, &lastSyncAt, &lastCheckedAt, &lastError, &panel.CreatedAt, &panel.UpdatedAt); err != nil {
+	if err := row.Scan(&panel.ID, &panel.Name, &panel.BaseURL, &panel.Username, &panel.EncryptedPassword, &apiToken, &version, &panel.Status, &lastSyncAt, &lastCheckedAt, &lastError, &panel.CreatedAt, &panel.UpdatedAt); err != nil {
 		return nil, err
 	}
+	panel.EncryptedAPIToken = apiToken.String
 	panel.Version = version.String
 	panel.LastError = lastError.String
 	if lastSyncAt.Valid {
@@ -370,7 +371,7 @@ func (r *sqlitePanelRepository) Update(ctx context.Context, panel *models.Panel)
 	if panel.UpdatedAt.IsZero() {
 		panel.UpdatedAt = time.Now().UTC()
 	}
-	_, err := r.db.ExecContext(ctx, `UPDATE panels SET name = ?, base_url = ?, username = ?, encrypted_password = ?, version = ?, status = ?, last_sync_at = ?, last_checked_at = ?, last_error = ?, updated_at = ? WHERE id = ?`, panel.Name, panel.BaseURL, panel.Username, panel.EncryptedPassword, nullString(panel.Version), panel.Status, nullTime(panel.LastSyncAt), nullTime(panel.LastCheckedAt), nullString(panel.LastError), panel.UpdatedAt.UTC(), panel.ID)
+	_, err := r.db.ExecContext(ctx, `UPDATE panels SET name = ?, base_url = ?, username = ?, encrypted_password = ?, encrypted_api_token = ?, version = ?, status = ?, last_sync_at = ?, last_checked_at = ?, last_error = ?, updated_at = ? WHERE id = ?`, panel.Name, panel.BaseURL, panel.Username, panel.EncryptedPassword, nullString(panel.EncryptedAPIToken), nullString(panel.Version), panel.Status, nullTime(panel.LastSyncAt), nullTime(panel.LastCheckedAt), nullString(panel.LastError), panel.UpdatedAt.UTC(), panel.ID)
 	return err
 }
 
@@ -380,7 +381,7 @@ func (r *sqlitePanelRepository) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *sqlitePanelRepository) List(ctx context.Context) ([]models.Panel, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, name, base_url, username, encrypted_password, version, status, last_sync_at, last_checked_at, last_error, created_at, updated_at FROM panels ORDER BY id ASC`)
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name, base_url, username, encrypted_password, encrypted_api_token, version, status, last_sync_at, last_checked_at, last_error, created_at, updated_at FROM panels ORDER BY id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -388,12 +389,13 @@ func (r *sqlitePanelRepository) List(ctx context.Context) ([]models.Panel, error
 	var items []models.Panel
 	for rows.Next() {
 		var panel models.Panel
-		var version, lastError sql.NullString
+		var apiToken, version, lastError sql.NullString
 		var lastSyncAt sql.NullTime
 		var lastCheckedAt sql.NullTime
-		if err := rows.Scan(&panel.ID, &panel.Name, &panel.BaseURL, &panel.Username, &panel.EncryptedPassword, &version, &panel.Status, &lastSyncAt, &lastCheckedAt, &lastError, &panel.CreatedAt, &panel.UpdatedAt); err != nil {
+		if err := rows.Scan(&panel.ID, &panel.Name, &panel.BaseURL, &panel.Username, &panel.EncryptedPassword, &apiToken, &version, &panel.Status, &lastSyncAt, &lastCheckedAt, &lastError, &panel.CreatedAt, &panel.UpdatedAt); err != nil {
 			return nil, err
 		}
+		panel.EncryptedAPIToken = apiToken.String
 		panel.Version = version.String
 		panel.LastError = lastError.String
 		if lastSyncAt.Valid {

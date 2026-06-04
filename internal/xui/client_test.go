@@ -36,7 +36,7 @@ func TestXUIClientLoginAndRetryAfterSessionExpiry(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(42, server.URL, "admin", "panel-password")
+	client := NewClient(42, server.URL, "admin", "panel-password", "")
 	if err := client.Login(context.Background()); err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestXUIClientAddClientSendsJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(7, server.URL, "admin", "panel-password")
+	client := NewClient(7, server.URL, "admin", "panel-password", "")
 	if err := client.Login(context.Background()); err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestXUIClientNormalizesTimeoutsAndHidesSecrets(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1, server.URL, "admin", "super-secret-password")
+	client := NewClient(1, server.URL, "admin", "super-secret-password", "")
 	client.HTTPClient.Timeout = 10 * time.Millisecond
 
 	if err := client.Login(context.Background()); err != nil {
@@ -118,5 +118,39 @@ func TestXUIClientNormalizesTimeoutsAndHidesSecrets(t *testing.T) {
 		if strings.Contains(err.Error(), secret) {
 			t.Fatalf("error leaked secret %q: %v", secret, err)
 		}
+	}
+}
+
+func TestXUIClientUsesBearerTokenWithoutLogin(t *testing.T) {
+	var loginCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch {
+		case req.URL.Path == "/login" && req.Method == http.MethodPost:
+			atomic.AddInt32(&loginCount, 1)
+			w.WriteHeader(http.StatusUnauthorized)
+		case req.URL.Path == "/panel/api/inbounds/list" && req.Method == http.MethodGet:
+			if got := req.Header.Get("Authorization"); got != "Bearer panel-token" {
+				t.Fatalf("unexpected authorization header: %q", got)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []XUIInbound{{ID: 1, Remark: "token-inbound", Protocol: "vless", Enabled: true}}})
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(9, server.URL, "admin", "", "panel-token")
+	if err := client.Login(context.Background()); err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	inbounds, err := client.ListInbounds(context.Background())
+	if err != nil {
+		t.Fatalf("list inbounds: %v", err)
+	}
+	if len(inbounds) != 1 || inbounds[0].Remark != "token-inbound" {
+		t.Fatalf("unexpected inbounds: %+v", inbounds)
+	}
+	if got := atomic.LoadInt32(&loginCount); got != 0 {
+		t.Fatalf("expected no login requests, got %d", got)
 	}
 }

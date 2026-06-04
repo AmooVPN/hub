@@ -18,19 +18,21 @@ type XUIClient struct {
 	BaseURL    string
 	Username   string
 	Password   string
+	APIToken   string
 	UserAgent  string
 	HTTPClient *http.Client
 	compat     XUICompatibility
 	loggedIn   bool
 }
 
-func NewClient(panelID int64, baseURL, username, password string) *XUIClient {
+func NewClient(panelID int64, baseURL, username, password, apiToken string) *XUIClient {
 	jar, _ := cookiejar.New(nil)
 	return &XUIClient{
 		PanelID:   panelID,
 		BaseURL:   strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		Username:  username,
 		Password:  password,
+		APIToken:  apiToken,
 		UserAgent: "hub/1.0",
 		HTTPClient: &http.Client{
 			Timeout: 20 * time.Second,
@@ -48,6 +50,10 @@ func NewClient(panelID int64, baseURL, username, password string) *XUIClient {
 func (c *XUIClient) SetUserAgent(userAgent string) { c.UserAgent = userAgent }
 
 func (c *XUIClient) Login(ctx context.Context) error {
+	if strings.TrimSpace(c.APIToken) != "" {
+		c.loggedIn = true
+		return nil
+	}
 	form := url.Values{}
 	form.Set("username", c.Username)
 	form.Set("password", c.Password)
@@ -117,6 +123,9 @@ func (c *XUIClient) do(ctx context.Context, method, path string, body io.Reader,
 	}
 	if c.UserAgent != "" {
 		req.Header.Set("User-Agent", c.UserAgent)
+	}
+	if token := strings.TrimSpace(c.APIToken); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)

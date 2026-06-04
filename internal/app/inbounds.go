@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/AmooVPN/hub/internal/models"
-	"github.com/AmooVPN/hub/internal/security"
 	"github.com/AmooVPN/hub/internal/xui"
 )
 
@@ -162,11 +161,11 @@ func (r *Runner) syncPanelInbounds(ctx context.Context, panel *models.Panel) err
 		if err := r.updateSyncJob(ctx, jobID, "running", "", nil); err != nil {
 			return err
 		}
-		password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+		password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, r.cfg.HUBSecretKey)
 		if err != nil {
 			return r.finishInboundSync(ctx, jobID, panel, models.PanelStatusError, err.Error(), err)
 		}
-		client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+		client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 		client.SetUserAgent(r.cfg.AppName)
 		loginCtx, cancelLogin := context.WithTimeout(ctx, 10*time.Second)
 		defer cancelLogin()

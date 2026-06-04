@@ -23,12 +23,14 @@ type panelListFilters struct {
 }
 
 type panelForm struct {
-	Name     string
-	BaseURL  string
-	Username string
-	Password string
-	Version  string
-	Status   string
+	Name          string
+	BaseURL       string
+	Username      string
+	Password      string
+	APIToken      string
+	ClearAPIToken bool
+	Version       string
+	Status        string
 }
 
 func (r *Runner) getAdminPanels(c *fiber.Ctx) error {
@@ -70,11 +72,20 @@ func (r *Runner) postAdminPanelCreate(c *fiber.Ctx) error {
 	if err := validatePanelBaseURLPolicy(form.BaseURL, r.cfg.PanelURLStrictMode, r.cfg.PanelURLAllowPrivate); err != nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderPanelFormPage("New Panel", "/admin/panels", form, r.cfg.AppName, admin.Role, []string{err.Error()}, false))
 	}
-	encryptedPassword, err := security.Encrypt(form.Password, r.cfg.HUBSecretKey)
-	if err != nil {
-		return err
+	panel := &models.Panel{Name: form.Name, BaseURL: normalizeBaseURL(form.BaseURL), Username: form.Username, Version: form.Version, Status: defaultPanelStatus(form.Status), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	var err error
+	if strings.TrimSpace(form.Password) != "" {
+		panel.EncryptedPassword, err = security.Encrypt(form.Password, r.cfg.HUBSecretKey)
+		if err != nil {
+			return err
+		}
 	}
-	panel := &models.Panel{Name: form.Name, BaseURL: normalizeBaseURL(form.BaseURL), Username: form.Username, EncryptedPassword: encryptedPassword, Version: form.Version, Status: defaultPanelStatus(form.Status), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	if strings.TrimSpace(form.APIToken) != "" {
+		panel.EncryptedAPIToken, err = security.Encrypt(form.APIToken, r.cfg.HUBSecretKey)
+		if err != nil {
+			return err
+		}
+	}
 	if err := panel.Validate(); err != nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderPanelFormPage("New Panel", "/admin/panels", form, r.cfg.AppName, admin.Role, []string{err.Error()}, false))
 	}
@@ -134,6 +145,14 @@ func (r *Runner) postAdminPanelUpdate(c *fiber.Ctx) error {
 	panel.UpdatedAt = time.Now().UTC()
 	if strings.TrimSpace(form.Password) != "" {
 		panel.EncryptedPassword, err = security.Encrypt(form.Password, r.cfg.HUBSecretKey)
+		if err != nil {
+			return err
+		}
+	}
+	if form.ClearAPIToken {
+		panel.EncryptedAPIToken = ""
+	} else if strings.TrimSpace(form.APIToken) != "" {
+		panel.EncryptedAPIToken, err = security.Encrypt(form.APIToken, r.cfg.HUBSecretKey)
 		if err != nil {
 			return err
 		}
@@ -307,11 +326,11 @@ func (r *Runner) clearPanelSession(ctx context.Context, panelID int64) error {
 }
 
 func (r *Runner) testPanelConnection(ctx context.Context, panel *models.Panel) (*xui.XUICompatibility, string, string) {
-	password, err := security.Decrypt(panel.EncryptedPassword, r.cfg.HUBSecretKey)
+	password, apiToken, err := decryptPanelCredentials(panel.EncryptedPassword, panel.EncryptedAPIToken, r.cfg.HUBSecretKey)
 	if err != nil {
 		return nil, models.PanelStatusError, err.Error()
 	}
-	client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password)
+	client := xui.NewClient(panel.ID, panel.BaseURL, panel.Username, password, apiToken)
 	client.SetUserAgent(r.cfg.AppName)
 	loginCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -340,12 +359,14 @@ func (r *Runner) syncPanelMetadata(ctx context.Context, panel *models.Panel) (st
 
 func parsePanelForm(c *fiber.Ctx) panelForm {
 	return panelForm{
-		Name:     strings.TrimSpace(c.FormValue("name")),
-		BaseURL:  strings.TrimSpace(c.FormValue("base_url")),
-		Username: strings.TrimSpace(c.FormValue("username")),
-		Password: c.FormValue("password"),
-		Version:  strings.TrimSpace(c.FormValue("version")),
-		Status:   strings.TrimSpace(c.FormValue("status")),
+		Name:          strings.TrimSpace(c.FormValue("name")),
+		BaseURL:       strings.TrimSpace(c.FormValue("base_url")),
+		Username:      strings.TrimSpace(c.FormValue("username")),
+		Password:      c.FormValue("password"),
+		APIToken:      c.FormValue("api_token"),
+		ClearAPIToken: c.FormValue("clear_api_token") != "",
+		Version:       strings.TrimSpace(c.FormValue("version")),
+		Status:        strings.TrimSpace(c.FormValue("status")),
 	}
 }
 
@@ -359,8 +380,8 @@ func validatePanelForm(form panelForm, requirePassword bool) error {
 	if form.Username == "" {
 		return errors.New("username is required")
 	}
-	if requirePassword && strings.TrimSpace(form.Password) == "" {
-		return errors.New("password is required")
+	if requirePassword && strings.TrimSpace(form.Password) == "" && strings.TrimSpace(form.APIToken) == "" {
+		return errors.New("password or api token is required")
 	}
 	if form.Status != "" && !models.IsValidPanelStatus(form.Status) {
 		return errors.New("invalid status")
@@ -463,7 +484,11 @@ func renderPanelDetailPage(panel *models.Panel, appName string, adminRole string
 
 func renderPanelDetailPageV2(panel *models.Panel, appName string, adminRole string) string {
 	buttonBar := `<div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Edit</a><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/test"><button class="btn btn-outline-primary btn-sm" type="submit">Test</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/health"><button class="btn btn-outline-info btn-sm" type="submit">Health check</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync"><button class="btn btn-outline-success btn-sm" type="submit">Sync</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/clear-session"><button class="btn btn-outline-warning btn-sm" type="submit">Clear session</button></form><form method="post" action="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/delete" onsubmit="return confirm('Delete this panel?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div>`
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(panel.Name) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(panel.BaseURL) + `</p></div>` + buttonBar + `</div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel information</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">` + panelStatusBadge(panel.Status) + `</dd><dt class="col-sm-4">Username</dt><dd class="col-sm-8">` + html.EscapeString(panel.Username) + `</dd><dt class="col-sm-4">Version</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(panel.Version, "-")) + `</dd><dt class="col-sm-4">Last sync</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</dd><dt class="col-sm-4">Last checked</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastCheckedAt)) + `</dd><dt class="col-sm-4">Last error</dt><dd class="col-sm-8 text-danger">` + html.EscapeString(defaultString(panel.LastError, "-")) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel details</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Base URL</dt><dd class="col-sm-8">` + html.EscapeString(panel.BaseURL) + `</dd><dt class="col-sm-4">Created</dt><dd class="col-sm-8">` + html.EscapeString(panel.CreatedAt.UTC().Format(time.RFC3339)) + `</dd><dt class="col-sm-4">Updated</dt><dd class="col-sm-8">` + html.EscapeString(panel.UpdatedAt.UTC().Format(time.RFC3339)) + `</dd></dl></div></div></div></div></div>`
+	authMethod := "Username / password"
+	if strings.TrimSpace(panel.EncryptedAPIToken) != "" {
+		authMethod = "API token"
+	}
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(panel.Name) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(panel.BaseURL) + `</p></div>` + buttonBar + `</div><div class="row g-3"><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel information</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">` + panelStatusBadge(panel.Status) + `</dd><dt class="col-sm-4">Username</dt><dd class="col-sm-8">` + html.EscapeString(panel.Username) + `</dd><dt class="col-sm-4">Auth</dt><dd class="col-sm-8">` + html.EscapeString(authMethod) + `</dd><dt class="col-sm-4">Version</dt><dd class="col-sm-8">` + html.EscapeString(defaultString(panel.Version, "-")) + `</dd><dt class="col-sm-4">Last sync</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</dd><dt class="col-sm-4">Last checked</dt><dd class="col-sm-8">` + html.EscapeString(formatTimeOrDash(panel.LastCheckedAt)) + `</dd><dt class="col-sm-4">Last error</dt><dd class="col-sm-8 text-danger">` + html.EscapeString(defaultString(panel.LastError, "-")) + `</dd></dl></div></div></div><div class="col-12 col-lg-6"><div class="card shadow-sm"><div class="card-header fw-semibold">Panel details</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-4">Base URL</dt><dd class="col-sm-8">` + html.EscapeString(panel.BaseURL) + `</dd><dt class="col-sm-4">Created</dt><dd class="col-sm-8">` + html.EscapeString(panel.CreatedAt.UTC().Format(time.RFC3339)) + `</dd><dt class="col-sm-4">Updated</dt><dd class="col-sm-8">` + html.EscapeString(panel.UpdatedAt.UTC().Format(time.RFC3339)) + `</dd></dl></div></div></div></div></div>`
 	return renderAdminShell(appName, adminRole, "panels", body)
 }
 
@@ -491,7 +516,17 @@ func renderPanelFormPage(title, action string, form panelForm, appName string, a
 			return ""
 		}
 		return " required"
-	}() + `>` + passwordNote + `</div><div><label class="form-label" for="version">Version</label><input class="form-control" id="version" name="version" value="` + html.EscapeString(form.Version) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
+	}() + `>` + passwordNote + `</div><div><label class="form-label" for="api_token">API token</label><input class="form-control" id="api_token" name="api_token" type="password"><div class="form-text">` + func() string {
+		if editing {
+			return "Leave blank to keep the current token. Check the box below to clear it. If provided, the token will be used instead of username/password for panel API requests."
+		}
+		return "Optional. If provided, the token will be used instead of username/password for panel API requests."
+	}() + `</div>` + func() string {
+		if !editing {
+			return ""
+		}
+		return `<div class="form-check"><input class="form-check-input" type="checkbox" id="clear_api_token" name="clear_api_token"><label class="form-check-label" for="clear_api_token">Clear existing API token</label></div>`
+	}() + `</div><div><label class="form-label" for="version">Version</label><input class="form-control" id="version" name="version" value="` + html.EscapeString(form.Version) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
 	return renderAdminShell(appName, adminRole, "panels", body)
 }
 

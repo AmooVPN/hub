@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -80,6 +81,7 @@ type Panel struct {
 	BaseURL           string     `json:"base_url"`
 	Username          string     `json:"username"`
 	EncryptedPassword string     `json:"-"`
+	EncryptedAPIToken string     `json:"-"`
 	Version           string     `json:"version,omitempty"`
 	Status            string     `json:"status"`
 	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
@@ -90,10 +92,14 @@ type Panel struct {
 }
 
 func (p Panel) Validate() error {
-	if p.Name == "" || p.BaseURL == "" || p.Username == "" || p.EncryptedPassword == "" || !IsValidPanelStatus(p.Status) {
+	if p.Name == "" || p.BaseURL == "" || p.Username == "" || (!hasAnyPanelSecret(p.EncryptedPassword, p.EncryptedAPIToken)) || !IsValidPanelStatus(p.Status) {
 		return errors.New("invalid panel")
 	}
 	return nil
+}
+
+func hasAnyPanelSecret(password, apiToken string) bool {
+	return strings.TrimSpace(password) != "" || strings.TrimSpace(apiToken) != ""
 }
 
 type Inbound struct {
