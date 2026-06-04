@@ -4290,12 +4290,12 @@ API error helpers
 
 Tasks:
 
-* [ ] Add config tests.
-* [ ] Add password tests.
-* [ ] Add crypto tests.
-* [ ] Add JWT tests.
-* [ ] Add subscription tests.
-* [ ] Add usage tests.
+* [x] Add config tests.
+* [x] Add password tests.
+* [x] Add crypto tests.
+* [x] Add JWT tests.
+* [x] Add subscription tests.
+* [x] Add usage tests.
 
 ---
 
@@ -4317,12 +4317,12 @@ BackupRepository if implemented
 
 Tasks:
 
-* [ ] Create test DB helper.
-* [ ] Run migrations in tests.
-* [ ] Test create/read/update/delete.
-* [ ] Test unique constraints.
-* [ ] Test foreign key behavior.
-* [ ] Test transactions.
+* [x] Create test DB helper.
+* [x] Run migrations in tests.
+* [x] Test create/read/update/delete.
+* [x] Test unique constraints.
+* [x] Test foreign key behavior.
+* [x] Test transactions.
 
 ---
 
@@ -4343,16 +4343,16 @@ UsageService
 
 Tasks:
 
-* [ ] Test admin login.
-* [ ] Test client login.
-* [ ] Test disabled client login rejection.
-* [ ] Test expired client status.
-* [ ] Test create client.
-* [ ] Test attach client partial failure.
-* [ ] Test subscription excludes disabled attachments.
-* [ ] Test traffic aggregation.
-* [ ] Test backup export.
-* [ ] Test backup import validation.
+* [x] Test admin login.
+* [x] Test client login.
+* [x] Test disabled client login rejection.
+* [x] Test expired client status.
+* [x] Test create client.
+* [x] Test attach client partial failure.
+* [x] Test subscription excludes disabled attachments.
+* [x] Test traffic aggregation.
+* [x] Test backup export.
+* [x] Test backup import validation.
 
 ---
 
