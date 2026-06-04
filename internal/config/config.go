@@ -29,6 +29,13 @@ type Config struct {
 	AutomaticBackupSchedule string
 	MetricsEnabled          bool
 	MetricsToken            string
+	TelegramBotToken        string
+	TelegramChatID          string
+	SMTPHost                string
+	SMTPPort                int
+	SMTPUsername            string
+	SMTPPassword            string
+	SMTPFrom                string
 	MaxUploadSizeMB         int
 	InitialAdminUsername    string
 	InitialAdminPassword    string
@@ -52,6 +59,12 @@ func Load() (*Config, error) {
 		BackupRetentionDays:     30,
 		AutomaticBackupSchedule: getEnv("AUTOMATIC_BACKUP_SCHEDULE", "daily"),
 		MetricsToken:            os.Getenv("METRICS_TOKEN"),
+		TelegramBotToken:        os.Getenv("TELEGRAM_BOT_TOKEN"),
+		TelegramChatID:          os.Getenv("TELEGRAM_CHAT_ID"),
+		SMTPHost:                os.Getenv("SMTP_HOST"),
+		SMTPUsername:            os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:                os.Getenv("SMTP_FROM"),
 		InitialAdminUsername:    getEnv("INITIAL_ADMIN_USERNAME", "admin"),
 		InitialAdminPassword:    getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
 		InitialAdminEmail:       os.Getenv("INITIAL_ADMIN_EMAIL"),
@@ -84,6 +97,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if c.MetricsEnabled, err = parseBoolEnv("METRICS_ENABLED", false); err != nil {
+		return nil, err
+	}
+	if c.SMTPPort, err = parseIntEnv("SMTP_PORT", 25); err != nil {
 		return nil, err
 	}
 	if !isValidBackupSchedule(c.AutomaticBackupSchedule) {

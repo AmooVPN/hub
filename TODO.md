@@ -3612,8 +3612,8 @@ TELEGRAM_CHAT_ID=
 
 Tasks:
 
-* [ ] Add Telegram notifier.
-* [ ] Add test message action.
+* [x] Add Telegram notifier.
+* [x] Add test message action.
 * [ ] Add event mapping.
 * [ ] Add retry on failure.
 
@@ -3635,9 +3635,9 @@ SMTP_FROM=
 
 Tasks:
 
-* [ ] Add SMTP notifier.
+* [x] Add SMTP notifier.
 * [ ] Add templates.
-* [ ] Add test email action.
+* [x] Add test email action.
 
 ---
 

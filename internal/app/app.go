@@ -42,6 +42,8 @@ type Runner struct {
 	audit          repositories.AuditRepository
 	webhooks       *services.WebhookService
 	notifications  *services.NotificationService
+	telegram       *services.TelegramNotifier
+	email          *services.EmailNotifier
 	logger         *slog.Logger
 	loginLocks     *attemptTracker
 	server         *fiber.App
@@ -116,6 +118,8 @@ func New(logger *slog.Logger) (*Runner, error) {
 		audit:          audit,
 		webhooks:       services.NewWebhookService(webhookDefs, webhookDeliveries),
 		notifications:  services.NewNotificationService(notifications),
+		telegram:       services.NewTelegramNotifier(cfg.TelegramBotToken, cfg.TelegramChatID),
+		email:          services.NewEmailNotifier(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom),
 		logger:         logger,
 		loginLocks:     newAttemptTracker(5, 15*time.Minute),
 	}
@@ -174,6 +178,8 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Get("/admin/notifications/bell", security.RequirePermission(security.PermissionViewDashboard), r.getAdminNotificationBell)
 	app.Post("/admin/notifications/:id/read", security.RequirePermission(security.PermissionViewDashboard), r.postAdminNotificationRead)
 	app.Post("/admin/notifications/read-all", security.RequirePermission(security.PermissionViewDashboard), r.postAdminNotificationsReadAll)
+	app.Post("/admin/settings/telegram/test", security.RequirePermission(security.PermissionManageSettings), r.postAdminTelegramTest)
+	app.Post("/admin/settings/email/test", security.RequirePermission(security.PermissionManageSettings), r.postAdminEmailTest)
 	app.Get("/admin/webhooks", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhooks)
 	app.Get("/admin/webhooks/new", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhookNew)
 	app.Post("/admin/webhooks", security.RequirePermission(security.PermissionManageSettings), r.postAdminWebhookCreate)
