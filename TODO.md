@@ -4748,11 +4748,11 @@ jobs:
 
 Tasks:
 
-* [ ] Add CI workflow.
-* [ ] Add Redis service.
-* [ ] Add test step.
-* [ ] Add build step.
-* [ ] Add Docker build step.
+* [x] Add CI workflow.
+* [x] Add Redis service.
+* [x] Add test step.
+* [x] Add build step.
+* [x] Add Docker build step.
 
 ---
 
