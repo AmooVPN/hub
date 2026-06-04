@@ -79,7 +79,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := tryGitPull(); err != nil {
 			return err
 		}
-		return runCompose("up", "-d", "--build")
+		if err := runCompose("pull"); err != nil {
+			return err
+		}
+		if err := runCompose("run", "--rm", "--no-deps", "--build", serviceName, "migrate"); err != nil {
+			return err
+		}
+		return runCompose("up", "-d", "--build", "--remove-orphans")
 	case "status":
 		return runCompose("ps")
 	case "logs":
@@ -112,18 +118,29 @@ func run(args []string, stdout, stderr io.Writer) error {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, "ahub - hub server manager")
+	fmt.Fprintln(w, "ahub - Hub server manager")
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "Usage: ahub <command> [options]")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  ahub")
-	fmt.Fprintln(w, "  ahub --help")
+	fmt.Fprintln(w, "    Show this help text")
 	fmt.Fprintln(w, "  ahub create env")
+	fmt.Fprintln(w, "    Generate a local .env file")
 	fmt.Fprintln(w, "  ahub create docker")
+	fmt.Fprintln(w, "    Generate Docker Compose and Dockerfile templates")
 	fmt.Fprintln(w, "  ahub setup --username admin --password '...' [--email ...] [--role owner]")
+	fmt.Fprintln(w, "    Bootstrap the initial admin account")
 	fmt.Fprintln(w, "  ahub start | stop | restart | rebuild | update | destroy")
+	fmt.Fprintln(w, "    Manage the Docker stack")
 	fmt.Fprintln(w, "  ahub status | logs | shell | backup | restore <file>")
+	fmt.Fprintln(w, "    Inspect or maintain the running installation")
 	fmt.Fprintln(w, "  ahub uninstall")
+	fmt.Fprintln(w, "    Remove containers, images, volumes, and local files")
 	fmt.Fprintln(w, "  ahub set port 8080")
+	fmt.Fprintln(w, "    Update the host port in .env")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Use 'ahub --help' or 'ahub help' to display this message.")
 }
 
 func isHelp(arg string) bool {

@@ -83,6 +83,8 @@ build_ahub() {
 			-u "$(id -u):$(id -g)" \
 			-v "$INSTALL_DIR:/src" \
 			-v "$BIN_DIR:/out" \
+			-v "$CACHE_DIR:/cache" \
+			-e GOCACHE=/cache \
 			-w /src \
 			golang:1.22 \
 			go build -buildvcs=false -o /out/ahub.tmp ./cmd/ahub
@@ -90,7 +92,7 @@ build_ahub() {
 		if ! command -v go >/dev/null 2>&1; then
 			install_go
 		fi
-		( cd "$INSTALL_DIR" && go build -buildvcs=false -o "$BIN_DIR/ahub.tmp" ./cmd/ahub )
+		( cd "$INSTALL_DIR" && GOCACHE="$CACHE_DIR" go build -buildvcs=false -o "$BIN_DIR/ahub.tmp" ./cmd/ahub )
 	fi
 	mv -f "$BIN_DIR/ahub.tmp" "$BIN_DIR/ahub"
 }
@@ -111,7 +113,9 @@ else
 fi
 
 BIN_DIR=${AHUB_BIN_DIR:-$HOME/.local/bin}
+CACHE_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/ahub-go-build
 mkdir -p "$BIN_DIR"
+mkdir -p "$CACHE_DIR"
 
 build_ahub
 

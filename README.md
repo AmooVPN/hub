@@ -92,7 +92,8 @@ The compose file starts `hub` and `redis` with persistent volumes for `./data` a
 - `ahub stop`
 - `ahub restart`
 - `ahub rebuild`
-- `ahub update`
+- `ahub update` - pull the latest source, refresh images, run migrations, and restart the stack
+- `./update.sh`
 - `ahub set port 8080`
 - `ahub uninstall`
 
