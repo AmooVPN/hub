@@ -46,7 +46,7 @@ func TestExecuteCreateAdmin(t *testing.T) {
 	var cfg *config.Config
 	withCommandConfig(t, func(testCfg *config.Config) {
 		cfg = testCfg
-		if err := execute([]string{"create-admin"}, testLogger()); err != nil {
+		if err := execute([]string{"create-admin", "--username", "admin", "--password", "change-me-now-123"}, testLogger()); err != nil {
 			t.Fatalf("execute: %v", err)
 		}
 		db, err := openSQLite(cfg.DatabasePath)
@@ -60,6 +60,14 @@ func TestExecuteCreateAdmin(t *testing.T) {
 		}
 		if count != 1 {
 			t.Fatalf("expected 1 admin, got %d", count)
+		}
+	})
+}
+
+func TestExecuteSetup(t *testing.T) {
+	withCommandConfig(t, func(*config.Config) {
+		if err := execute([]string{"setup", "--username", "admin", "--password", "change-me-now-123"}, testLogger()); err != nil {
+			t.Fatalf("execute: %v", err)
 		}
 	})
 }
@@ -100,9 +108,6 @@ func withCommandConfig(t *testing.T, fn func(*config.Config)) {
 		SessionCookieName:    "hub_session",
 		HUBSecretKey:         "secret-key-secret-key",
 		BackupDir:            filepath.Join(dir, "backups"),
-		InitialAdminUsername: "admin",
-		InitialAdminPassword: "change-me-now-123",
-		InitialAdminRole:     "owner",
 	}
 	origLoadConfig := loadConfig
 	origOpenSQLite := openSQLite

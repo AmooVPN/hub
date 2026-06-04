@@ -1,22 +1,21 @@
 # Development
 
 ## Local Setup
-1. Copy `.env.example` to `.env` and set `HUB_SECRET_KEY`.
-2. Start Redis locally or with Docker.
-3. Run migrations.
-4. Create the initial admin.
-5. Start the app.
+1. Install `ahub`.
+2. Run `ahub create env`.
+3. Run `ahub create docker`.
+4. Run `ahub start`.
+5. Run `ahub setup --username admin --password '...'`.
 
 ```bash
-cp .env.example .env
-docker compose up -d redis
-go run ./cmd/hub migrate
-go run ./cmd/hub create-admin
-go run ./cmd/hub serve
+ahub create env
+ahub create docker
+ahub start
+ahub setup --username admin --password '...'
 ```
 
 ## Running Redis
-- Use a local Redis instance or `docker compose up redis`.
+- Use Docker Compose via `ahub start`.
 - The app exits on startup if Redis is unavailable.
 
 ## Running Tests

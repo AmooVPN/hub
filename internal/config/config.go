@@ -2,10 +2,13 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -48,36 +51,40 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println(".env file not found")
+	}
+
 	c := &Config{
 		AppName:                 getEnv("APP_NAME", "hub"),
 		AppEnv:                  getEnv("APP_ENV", "development"),
 		AppAddr:                 getEnv("APP_ADDR", "0.0.0.0:8080"),
 		AppBaseURL:              getEnv("APP_BASE_URL", "http://localhost:8080"),
 		DatabasePath:            getEnv("DATABASE_PATH", "./data/hub.db"),
-		RedisAddr:               getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:           os.Getenv("REDIS_PASSWORD"),
+		RedisAddr:               getEnv("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:           getEnv("REDIS_PASSWORD", ""),
 		SessionCookieName:       getEnv("SESSION_COOKIE_NAME", "hub_session"),
-		HUBSecretKey:            os.Getenv("HUB_SECRET_KEY"),
+		HUBSecretKey:            getEnv("HUB_SECRET_KEY", ""),
 		BackupDir:               getEnv("BACKUP_DIR", "./backups"),
 		BackupRetentionCount:    20,
 		BackupRetentionDays:     30,
 		AutomaticBackupSchedule: getEnv("AUTOMATIC_BACKUP_SCHEDULE", "daily"),
-		MetricsToken:            os.Getenv("METRICS_TOKEN"),
-		TelegramBotToken:        os.Getenv("TELEGRAM_BOT_TOKEN"),
-		TelegramChatID:          os.Getenv("TELEGRAM_CHAT_ID"),
-		SMTPHost:                os.Getenv("SMTP_HOST"),
-		SMTPUsername:            os.Getenv("SMTP_USERNAME"),
-		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:                os.Getenv("SMTP_FROM"),
-		TrustedProxies:          splitEnvList(os.Getenv("TRUSTED_PROXIES")),
+		MetricsToken:            getEnv("METRICS_TOKEN", ""),
+		TelegramBotToken:        getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramChatID:          getEnv("TELEGRAM_CHAT_ID", ""),
+		SMTPHost:                getEnv("SMTP_HOST", ""),
+		SMTPUsername:            getEnv("SMTP_USERNAME", ""),
+		SMTPPassword:            getEnv("SMTP_PASSWORD", ""),
+		SMTPFrom:                getEnv("SMTP_FROM", ""),
+		TrustedProxies:          splitEnvList(getEnv("TRUSTED_PROXIES", "")),
 		PanelURLAllowPrivate:    true,
 		InitialAdminUsername:    getEnv("INITIAL_ADMIN_USERNAME", "admin"),
 		InitialAdminPassword:    getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
-		InitialAdminEmail:       os.Getenv("INITIAL_ADMIN_EMAIL"),
+		InitialAdminEmail:       getEnv("INITIAL_ADMIN_EMAIL", ""),
 		InitialAdminRole:        getEnv("INITIAL_ADMIN_ROLE", "owner"),
 	}
 
-	var err error
 	if c.RedisDB, err = parseIntEnv("REDIS_DB", 0); err != nil {
 		return nil, err
 	}

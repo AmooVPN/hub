@@ -12,6 +12,12 @@ import (
 )
 
 func staticAssetDir() string {
+	if wd, err := os.Getwd(); err == nil {
+		candidate := filepath.Clean(filepath.Join(wd, "web", "static"))
+		if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+			return candidate
+		}
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		return "./web/static"

@@ -18,9 +18,6 @@ func TestLoadParsesEnvironment(t *testing.T) {
 	t.Setenv("AUTOMATIC_BACKUP_SCHEDULE", "weekly")
 	t.Setenv("TRUSTED_PROXIES", "10.0.0.1, 10.0.0.2")
 	t.Setenv("TRUST_PROXY", "true")
-	t.Setenv("INITIAL_ADMIN_USERNAME", "admin")
-	t.Setenv("INITIAL_ADMIN_PASSWORD", "change-me-now-123")
-	t.Setenv("INITIAL_ADMIN_ROLE", "owner")
 
 	cfg, err := Load()
 	if err != nil {

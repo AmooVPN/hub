@@ -22,19 +22,25 @@ Central multi-panel management hub for 3x-ui / Xray deployments.
 - Placeholder: add screenshots of the dashboard, client portal, and admin forms.
 
 ## Quick Start
-1. Copy `.env.example` to `.env` and set `HUB_SECRET_KEY`.
-2. Start Redis.
-3. Run the app:
+1. Install `ahub`.
+2. Create env and docker files:
 
 ```bash
-go run ./cmd/hub serve
+ahub create env
+ahub create docker
+```
+
+3. Start the stack:
+
+```bash
+ahub start
 ```
 
 4. Open `http://localhost:8080`.
 
 ## Docker Compose
 ```bash
-docker compose up -d --build
+ahub rebuild
 ```
 
 The compose file starts `hub` and `redis` with persistent volumes for `./data` and `./backups`.
@@ -62,14 +68,27 @@ The compose file starts `hub` and `redis` with persistent volumes for `./data` a
 - `TRUST_PROXY`
 - `TRUSTED_PROXIES`
 - `MAX_UPLOAD_SIZE_MB`
-- `INITIAL_ADMIN_USERNAME`
-- `INITIAL_ADMIN_PASSWORD`
-- `INITIAL_ADMIN_EMAIL`
-- `INITIAL_ADMIN_ROLE`
 
 ## Initial Admin Setup
-- On first start, the initial admin is bootstrapped from environment variables when the database is empty.
-- Default values are shown in `.env.example`.
+- On first start, open `/setup` to create the first admin account.
+- After setup, the app redirects to the admin login/dashboard flow.
+- CLI setup is available from the server: `ahub setup --username admin --password '...'`.
+
+## Server CLI
+- `ahub`
+- `ahub --help`
+- `ahub create env`
+- `ahub create docker`
+- `ahub start`
+- `ahub stop`
+- `ahub restart`
+- `ahub rebuild`
+- `ahub update`
+- `ahub set port 8080`
+- `ahub uninstall`
+
+## Uninstall
+- Run `ahub uninstall` or `./uninstall.sh` to stop containers, remove volumes, and wipe the install directory.
 
 ## Panel Workflow
 ### Add a Panel

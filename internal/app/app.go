@@ -16,7 +16,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/AmooVPM/hub/internal/bootstrap"
 	"github.com/AmooVPM/hub/internal/config"
 	"github.com/AmooVPM/hub/internal/database"
 	"github.com/AmooVPM/hub/internal/models"
@@ -102,10 +101,8 @@ func New(logger *slog.Logger) (*Runner, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := bootstrap.EnsureInitialAdmin(ctx, cfg, admins, logger); err != nil {
-		_ = db.Close()
-		_ = rdb.Close()
-		return nil, err
+	if count, err := admins.Count(ctx); err == nil && count == 0 && logger != nil {
+		logger.Info("initial setup required")
 	}
 
 	runner := &Runner{
@@ -167,6 +164,8 @@ func (r *Runner) buildServer() *fiber.App {
 		app.Use(r.metricsMiddleware())
 	}
 	app.Get("/", r.home)
+	app.Get("/setup", r.getSetup)
+	app.Post("/setup", r.postSetup)
 	app.Get("/health", r.getHealth)
 	app.Get("/health/live", r.getHealthLive)
 	app.Get("/health/ready", r.getHealthReady)
@@ -316,6 +315,13 @@ func (r *Runner) errorHandler(c *fiber.Ctx, err error) error {
 }
 
 func (r *Runner) home(c *fiber.Ctx) error {
+	setupRequired, err := r.initialSetupRequired(c.UserContext())
+	if err != nil {
+		return err
+	}
+	if setupRequired {
+		return c.Redirect("/setup", fiber.StatusFound)
+	}
 	return c.Redirect("/admin/login", fiber.StatusFound)
 }
 
@@ -329,6 +335,13 @@ func (r *Runner) health(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getAdminLogin(c *fiber.Ctx) error {
+	setupRequired, err := r.initialSetupRequired(c.UserContext())
+	if err != nil {
+		return err
+	}
+	if setupRequired {
+		return c.Redirect("/setup", fiber.StatusFound)
+	}
 	if _, ok := r.loadAdminFromRequest(c); ok {
 		return c.Redirect("/admin", fiber.StatusFound)
 	}
@@ -336,6 +349,13 @@ func (r *Runner) getAdminLogin(c *fiber.Ctx) error {
 }
 
 func (r *Runner) postAdminLogin(c *fiber.Ctx) error {
+	setupRequired, err := r.initialSetupRequired(c.UserContext())
+	if err != nil {
+		return err
+	}
+	if setupRequired {
+		return c.Redirect("/setup", fiber.StatusFound)
+	}
 	username := strings.TrimSpace(c.FormValue("username"))
 	password := c.FormValue("password")
 	ip := requestClientIP(c, r.cfg.TrustProxy)
@@ -357,21 +377,9 @@ func (r *Runner) postAdminLogin(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
-	defer cancel()
-	expires := time.Now().UTC().Add(time.Duration(r.cfg.SessionTTLHrs) * time.Hour)
-	if err := r.redis.Set(ctx, adminSessionKey(token), admin.ID, time.Until(expires)).Err(); err != nil {
+	if err := r.issueAdminSession(c, admin, token); err != nil {
 		return err
 	}
-	c.Cookie(&fiber.Cookie{
-		Name:     r.cfg.SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   r.cfg.IsProduction(),
-		SameSite: "Lax",
-		Expires:  expires,
-	})
 	_ = r.logAudit(c.UserContext(), "admin", &admin.ID, "login_success", "admin", &admin.ID, map[string]any{"username": admin.Username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 	return c.Redirect("/admin", fiber.StatusFound)
 }
@@ -392,6 +400,13 @@ func (r *Runner) postAdminLogout(c *fiber.Ctx) error {
 }
 
 func (r *Runner) requireAdminSession(c *fiber.Ctx) error {
+	setupRequired, err := r.initialSetupRequired(c.UserContext())
+	if err != nil {
+		return err
+	}
+	if setupRequired {
+		return c.Redirect("/setup", fiber.StatusFound)
+	}
 	admin, ok := r.loadAdminFromRequest(c)
 	if !ok {
 		return c.Redirect("/admin/login", fiber.StatusFound)
@@ -613,6 +628,13 @@ func (r *Runner) postAdminUserResetPassword(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getClientLogin(c *fiber.Ctx) error {
+	setupRequired, err := r.initialSetupRequired(c.UserContext())
+	if err != nil {
+		return err
+	}
+	if setupRequired {
+		return c.Redirect("/setup", fiber.StatusFound)
+	}
 	if _, ok := r.loadClientFromRequest(c); ok {
 		return c.Redirect("/client", fiber.StatusFound)
 	}
@@ -620,6 +642,13 @@ func (r *Runner) getClientLogin(c *fiber.Ctx) error {
 }
 
 func (r *Runner) postClientLogin(c *fiber.Ctx) error {
+	setupRequired, err := r.initialSetupRequired(c.UserContext())
+	if err != nil {
+		return err
+	}
+	if setupRequired {
+		return c.Redirect("/setup", fiber.StatusFound)
+	}
 	username := strings.TrimSpace(c.FormValue("username"))
 	password := c.FormValue("password")
 	key := "client:" + c.IP() + ":" + username
@@ -800,6 +829,39 @@ func (r *Runner) getClientUsage(c *fiber.Ctx) error {
 		return err
 	}
 	return c.Type("html").SendString(renderClientUsagePage(summary, r.cfg.AppName))
+}
+
+func (r *Runner) initialSetupRequired(ctx context.Context) (bool, error) {
+	if r == nil || r.admins == nil {
+		return false, nil
+	}
+	count, err := r.admins.Count(ctx)
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
+func (r *Runner) issueAdminSession(c *fiber.Ctx, admin *models.AdminUser, token string) error {
+	if r.redis == nil {
+		return errors.New("redis is not configured")
+	}
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+	expires := time.Now().UTC().Add(time.Duration(r.cfg.SessionTTLHrs) * time.Hour)
+	if err := r.redis.Set(ctx, adminSessionKey(token), admin.ID, time.Until(expires)).Err(); err != nil {
+		return err
+	}
+	c.Cookie(&fiber.Cookie{
+		Name:     r.cfg.SessionCookieName,
+		Value:    token,
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   r.cfg.IsProduction(),
+		SameSite: "Lax",
+		Expires:  expires,
+	})
+	return nil
 }
 
 func (r *Runner) loadAdminFromRequest(c *fiber.Ctx) (*models.AdminUser, bool) {

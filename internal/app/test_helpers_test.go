@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -19,6 +20,12 @@ import (
 )
 
 func newHandlerTestRunner(t *testing.T) (*Runner, *config.Config) {
+	r, cfg := newEmptyHandlerTestRunner(t)
+	seedTestAdmin(t, r)
+	return r, cfg
+}
+
+func newEmptyHandlerTestRunner(t *testing.T) (*Runner, *config.Config) {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := database.OpenSQLite(filepath.Join(dir, "hub.db"))
@@ -55,9 +62,6 @@ func newHandlerTestRunner(t *testing.T) (*Runner, *config.Config) {
 		BackupRetentionCount: 20,
 		BackupRetentionDays:  30,
 		MaxUploadSizeMB:     10,
-		InitialAdminUsername: "admin",
-		InitialAdminPassword: "change-me-now-123",
-		InitialAdminRole:     "owner",
 	}
 	r := &Runner{
 		cfg:        cfg,
@@ -75,6 +79,18 @@ func newHandlerTestRunner(t *testing.T) (*Runner, *config.Config) {
 		loginLocks: newAttemptTracker(5, 15*time.Minute),
 	}
 	return r, cfg
+}
+
+func seedTestAdmin(t *testing.T, r *Runner) {
+	t.Helper()
+	hash, err := security.HashPassword("change-me-now-123")
+	if err != nil {
+		t.Fatalf("hash admin password: %v", err)
+	}
+	admin := &models.AdminUser{Username: "admin", PasswordHash: hash, Role: "owner", Active: true}
+	if err := r.admins.Create(context.Background(), admin); err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
 }
 
 func newFiberTestApp() *fiber.App {

@@ -1,0 +1,10 @@
+.env
+data/
+backups/
+bin/
+dist/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal

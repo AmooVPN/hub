@@ -1,13 +1,17 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"database/sql"
+	"flag"
+	"io"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/AmooVPM/hub/internal/database"
 	app "github.com/AmooVPM/hub/internal/app"
 	"github.com/AmooVPM/hub/internal/repositories"
+	"github.com/AmooVPM/hub/internal/services"
 	"github.com/AmooVPM/hub/internal/version"
 )
 
@@ -50,20 +55,16 @@ func execute(args []string, logger *slog.Logger) error {
 		return runServe(logger)
 	case "migrate":
 		return runMigrate(logger)
+	case "setup":
+		return runSetup(rest, logger)
 	case "create-admin":
-		return runCreateAdmin(logger)
+		return runSetup(rest, logger)
 	case "healthcheck":
 		return runHealthcheck(logger)
 	case "version":
 		return runVersion(os.Stdout)
 	case "backup":
-		if len(rest) > 0 && rest[0] == "export" {
-			return errors.New("backup export is not implemented yet")
-		}
-		if len(rest) > 0 && rest[0] == "import" {
-			return errors.New("backup import is not implemented yet")
-		}
-		return errors.New("backup commands are not implemented yet")
+		return runBackup(rest, logger)
 	case "help", "-h", "--help":
 		printUsage(os.Stdout)
 		return nil
@@ -93,7 +94,23 @@ func runMigrate(logger *slog.Logger) error {
 }
 
 func runCreateAdmin(logger *slog.Logger) error {
-	cfg, db, _, cleanup, err := openConfiguredDatabase()
+	return runSetup(nil, logger)
+}
+
+func runSetup(args []string, logger *slog.Logger) error {
+	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	username := fs.String("username", "admin", "initial admin username")
+	password := fs.String("password", "", "initial admin password")
+	email := fs.String("email", "", "initial admin email")
+	role := fs.String("role", "owner", "initial admin role")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*password) == "" {
+		return errors.New("--password is required")
+	}
+	cfg, db, cleanup, err := openConfiguredSQLite()
 	if err != nil {
 		return err
 	}
@@ -107,7 +124,15 @@ func runCreateAdmin(logger *slog.Logger) error {
 	admins := newAdminRepository(db)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return ensureInitialAdmin(ctx, cfg, admins, logger)
+	admin, err := bootstrap.CreateInitialAdmin(ctx, admins, *username, *password, *email, *role)
+	if err != nil {
+		return err
+	}
+	if logger != nil {
+		logger.Info("created initial admin user", "username", admin.Username, "role", admin.Role, "database", cfg.DatabasePath)
+	}
+	_, _ = fmt.Fprintln(os.Stdout, "created initial admin user:", admin.Username)
+	return nil
 }
 
 func runHealthcheck(logger *slog.Logger) error {
@@ -126,6 +151,122 @@ func runHealthcheck(logger *slog.Logger) error {
 		return errors.New("redis connection is required")
 	}
 	return nil
+}
+
+func runBackup(args []string, logger *slog.Logger) error {
+	if len(args) == 0 || args[0] == "export" {
+		return runBackupExport(logger)
+	}
+	if args[0] == "import" {
+		return runBackupImport(args[1:], logger)
+	}
+	return fmt.Errorf("unknown backup command %q", args[0])
+}
+
+func runBackupExport(logger *slog.Logger) error {
+	cfg, db, cleanup, err := openConfiguredSQLite()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	_ = db
+	service := services.NewBackupService()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rec, err := service.Create(ctx, cfg.DatabasePath, cfg.BackupDir, cfg.AppName)
+	if err != nil {
+		return err
+	}
+	if logger != nil {
+		logger.Info("created backup", "name", rec.Name, "size", rec.Size)
+	}
+	_, _ = fmt.Fprintln(os.Stdout, rec.Name)
+	return nil
+}
+
+func runBackupImport(args []string, logger *slog.Logger) error {
+	fs := flag.NewFlagSet("backup import", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	file := fs.String("file", "", "backup file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	path := strings.TrimSpace(*file)
+	if path == "" && fs.NArg() > 0 {
+		path = fs.Arg(0)
+	}
+	if path == "" {
+		return errors.New("backup file is required")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return err
+	}
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	if err := cfg.EnsurePaths(); err != nil {
+		return err
+	}
+	service := services.NewBackupService()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := service.PrepareImport(ctx, data, cfg.DatabasePath, cfg.BackupDir, cfg.AppName)
+	if err != nil {
+		return err
+	}
+	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return err
+	}
+	var dbBytes []byte
+	for _, f := range archive.File {
+		if f.Name != "hub.db" {
+			continue
+		}
+		fhandle, err := f.Open()
+		if err != nil {
+			return err
+		}
+		dbBytes, err = io.ReadAll(fhandle)
+		_ = fhandle.Close()
+		if err != nil {
+			return err
+		}
+		break
+	}
+	if len(dbBytes) == 0 {
+		return errors.New("backup archive is missing hub.db")
+	}
+	if err := os.WriteFile(cfg.DatabasePath, dbBytes, 0o600); err != nil {
+		return err
+	}
+	if logger != nil {
+		logger.Info("imported backup", "archive", filepath.Base(abs), "safety_backup", result.SafetyBackup.Name)
+	}
+	_, _ = fmt.Fprintln(os.Stdout, "imported backup from", filepath.Base(abs))
+	return nil
+}
+
+func openConfiguredSQLite() (*config.Config, *sql.DB, func(), error) {
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil, nil, func() {}, err
+	}
+	if err := cfg.EnsurePaths(); err != nil {
+		return nil, nil, func() {}, err
+	}
+	db, err := openSQLite(cfg.DatabasePath)
+	if err != nil {
+		return nil, nil, func() {}, err
+	}
+	cleanup := func() { _ = db.Close() }
+	return cfg, db, cleanup, nil
 }
 
 func openConfiguredDatabase() (*config.Config, *sql.DB, io.Closer, func(), error) {
@@ -158,12 +299,12 @@ func runVersion(w io.Writer) error {
 }
 
 func printUsage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "Usage: hub [serve|migrate|create-admin|healthcheck|version|help]")
+	_, _ = fmt.Fprintln(w, "Usage: hub [serve|migrate|setup|create-admin|healthcheck|version|backup|help]")
 }
 
 func isKnownCommand(arg string) bool {
 	switch strings.TrimSpace(arg) {
-	case "serve", "migrate", "create-admin", "healthcheck", "version", "backup", "help", "-h", "--help":
+	case "serve", "migrate", "setup", "create-admin", "healthcheck", "version", "backup", "help", "-h", "--help":
 		return true
 	default:
 		return false

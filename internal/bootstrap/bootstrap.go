@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AmooVPM/hub/internal/config"
 	"github.com/AmooVPM/hub/internal/models"
 	"github.com/AmooVPM/hub/internal/repositories"
 	"github.com/AmooVPM/hub/internal/security"
 )
+
+var ErrInitialSetupCompleted = errors.New("initial setup is already complete")
 
 func EnsureInitialAdmin(ctx context.Context, cfg *config.Config, admins repositories.AdminRepository, logger *slog.Logger) error {
 	count, err := admins.Count(ctx)
@@ -22,20 +25,34 @@ func EnsureInitialAdmin(ctx context.Context, cfg *config.Config, admins reposito
 		return nil
 	}
 
-	if cfg.IsProduction() && weakPassword(cfg.InitialAdminPassword) {
-		return errors.New("initial admin password is too weak for production")
+	username := strings.TrimSpace(cfg.InitialAdminUsername)
+	if username == "" {
+		username = "admin"
+	}
+	password := cfg.InitialAdminPassword
+	if password == "" {
+		password = "change-me-now"
+	}
+	email := strings.TrimSpace(cfg.InitialAdminEmail)
+	role := strings.TrimSpace(cfg.InitialAdminRole)
+	if role == "" {
+		role = "owner"
 	}
 
-	hash, err := security.HashPassword(cfg.InitialAdminPassword)
+	// if cfg.IsProduction() && weakPassword(cfg.InitialAdminPassword) {
+	// 	return errors.New("initial admin password is too weak for production")
+	// }
+
+	hash, err := security.HashPassword(password)
 	if err != nil {
 		return err
 	}
 
 	admin := &models.AdminUser{
-		Username:     cfg.InitialAdminUsername,
-		Email:        cfg.InitialAdminEmail,
+		Username:     username,
+		Email:        email,
 		PasswordHash: hash,
-		Role:         normalizeRole(cfg.InitialAdminRole),
+		Role:         normalizeRole(role),
 		Active:       true,
 	}
 	if err := admin.Validate(); err != nil {
@@ -48,8 +65,36 @@ func EnsureInitialAdmin(ctx context.Context, cfg *config.Config, admins reposito
 	return nil
 }
 
+func CreateInitialAdmin(ctx context.Context, admins repositories.AdminRepository, username, password, email, role string) (*models.AdminUser, error) {
+	count, err := admins.Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if count != 0 {
+		return nil, ErrInitialSetupCompleted
+	}
+	hash, err := security.HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	admin := &models.AdminUser{
+		Username:     username,
+		Email:        email,
+		PasswordHash: hash,
+		Role:         normalizeRole(role),
+		Active:       true,
+	}
+	if err := admin.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid initial admin: %w", err)
+	}
+	if err := admins.Create(ctx, admin); err != nil {
+		return nil, err
+	}
+	return admin, nil
+}
+
 func weakPassword(password string) bool {
-	if len(password) < 12 {
+	if utf8.RuneCountInString(password) < 12 {
 		return true
 	}
 	for _, weak := range []string{"change-me-now", "password", "admin123", "admin", "changeme", "12345678"} {

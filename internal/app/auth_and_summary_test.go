@@ -27,16 +27,9 @@ import (
 
 func TestAdminLoginRoute(t *testing.T) {
 	r, cfg := newAuthTestRunner(t)
-	hash, err := security.HashPassword("admin-password-123")
-	if err != nil {
-		t.Fatalf("hash password: %v", err)
-	}
-	if err := r.admins.Create(context.Background(), &models.AdminUser{Username: "admin", PasswordHash: hash, Role: security.RoleOwner, Active: true}); err != nil {
-		t.Fatalf("create admin: %v", err)
-	}
 	app := fiber.New()
 	app.Post("/admin/login", r.postAdminLogin)
-	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(url.Values{"username": {"admin"}, "password": {"admin-password-123"}}.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(url.Values{"username": {"admin"}, "password": {"change-me-now-123"}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := app.Test(req)
 	if err != nil {
@@ -231,9 +224,6 @@ func newAuthTestRunner(t *testing.T) (*Runner, *config.Config) {
 		HUBSecretKey:         "secret-key-secret-key",
 		BackupRetentionCount:  20,
 		BackupRetentionDays:   30,
-		InitialAdminUsername:  "admin",
-		InitialAdminPassword:  "change-me-now-123",
-		InitialAdminRole:      "owner",
 	}
 	r := &Runner{
 		cfg:            cfg,
@@ -249,6 +239,7 @@ func newAuthTestRunner(t *testing.T) (*Runner, *config.Config) {
 		backups:        services.NewBackupService(),
 		cleanup:        services.NewCleanupService(db, repositories.NewSyncJobRepository(db), services.NewBackupService()),
 	}
+	seedTestAdmin(t, r)
 	return r, cfg
 }
 

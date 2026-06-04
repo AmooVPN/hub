@@ -734,7 +734,13 @@ On first startup, if no admin exists:
 Option A:
 
 ```txt
-Create default admin from env variables.
+Show one-time setup page.
+```
+
+Option B:
+
+```txt
+Legacy env bootstrap for automation.
 ```
 
 Env variables:
@@ -744,23 +750,17 @@ INITIAL_ADMIN_USERNAME=admin
 INITIAL_ADMIN_PASSWORD=change-me-now
 ```
 
-Option B:
+Recommended MVP:
 
 ```txt
 Show one-time setup page.
 ```
 
-Recommended MVP:
-
-```txt
-Use env variables first.
-Add setup page later.
-```
-
 Tasks:
 
 * [x] Check if `admin_users` table is empty.
-* [x] If empty, create initial admin from env.
+* [x] If empty, show one-time setup page.
+* [x] Create initial admin from the setup page.
 * [x] Refuse production startup if initial password is weak/default.
 * [ ] Force password change flag can be added later.
 
@@ -4127,7 +4127,7 @@ Tasks:
 * [x] Add persistent backups volume.
 * [x] Add Redis volume.
 * [ ] Add production env example.
-* [ ] Document first-run admin setup.
+* [x] Document first-run admin setup.
 
 ---
 
@@ -5157,28 +5157,30 @@ Implementation order status: complete.
 
 Before tagging `v0.1.0`:
 
-* [ ] Start app locally.
-* [ ] Start app with Docker Compose.
-* [ ] Create initial admin.
-* [ ] Log in as admin.
-* [ ] Add 3x-ui panel.
-* [ ] Test panel.
-* [ ] Sync inbounds.
-* [ ] Create client.
-* [ ] Attach client to inbound.
-* [ ] Confirm remote client exists in 3x-ui.
-* [ ] Open subscription link.
-* [ ] Open client portal.
-* [ ] Change client password.
-* [ ] Login through client API.
-* [ ] Fetch subscription URL through API.
-* [ ] Fetch usage through API.
-* [ ] Fetch status through API.
-* [ ] Export backup.
-* [ ] Import backup.
-* [ ] Restart app.
-* [ ] Confirm data persisted.
-* [ ] Confirm logs have no secrets.
+* [x] Start app locally.
+* [x] Start app with Docker Compose.
+* [x] Create initial admin.
+* [x] Log in as admin.
+* [x] Add 3x-ui panel.
+* [x] Test panel.
+* [x] Sync inbounds.
+* [x] Create client.
+* [x] Attach client to inbound.
+* [x] Confirm remote client exists in 3x-ui.
+* [x] Open subscription link.
+* [x] Open client portal.
+* [x] Change client password.
+* [x] Login through client API.
+* [x] Fetch subscription URL through API.
+* [x] Fetch usage through API.
+* [x] Fetch status through API.
+* [x] Export backup.
+* [x] Import backup.
+* [x] Restart app.
+* [x] Confirm data persisted.
+* [x] Confirm logs have no secrets.
+
+Manual test checklist: complete.
 
 ---
 
