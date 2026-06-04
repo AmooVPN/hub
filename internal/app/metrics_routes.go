@@ -56,7 +56,8 @@ func (r *Runner) getMetrics(c *fiber.Ctx) error {
 	out.WriteString(fmt.Sprintf("hub_backup_imports_total %d\n", collector.BackupImportsTotal))
 	out.WriteString(fmt.Sprintf("hub_subscriptions_requests_total %d\n", collector.SubscriptionTotal))
 	out.WriteString(fmt.Sprintf("hub_backup_files_total %d\n", backupCount))
-	return c.Type("text/plain; charset=utf-8").SendString(out.String())
+	c.Set("Content-Type", "text/plain; charset=utf-8")
+	return c.SendString(out.String())
 }
 
 func (r *Runner) collectMetricsCounts(ctx context.Context) (panelsTotal, panelsOnline, panelsOffline, clientsTotal, clientsActive, clientsDisabled, syncJobsTotal, syncJobsFailed, backupCount int64, err error) {

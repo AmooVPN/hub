@@ -3924,16 +3924,16 @@ PRAGMA integrity_check;
 
 Required tests:
 
-* [ ] Export creates zip.
-* [ ] Zip contains hub.db.
-* [ ] Zip contains metadata.json.
-* [ ] Metadata is valid.
-* [ ] Import rejects missing metadata.
-* [ ] Import rejects wrong app.
-* [ ] Import rejects path traversal.
-* [ ] Import rejects invalid SQLite.
-* [ ] Import creates pre-import backup.
-* [ ] Failed import keeps old DB.
+* [x] Export creates zip.
+* [x] Zip contains hub.db.
+* [x] Zip contains metadata.json.
+* [x] Metadata is valid.
+* [x] Import rejects missing metadata.
+* [x] Import rejects wrong app.
+* [x] Import rejects path traversal.
+* [x] Import rejects invalid SQLite.
+* [x] Import creates pre-import backup.
+* [x] Failed import keeps old DB.
 
 ---
 
@@ -3956,10 +3956,10 @@ Required tests:
 
 Required tests:
 
-* [ ] `/health/live` returns ok.
-* [ ] `/health/ready` checks SQLite.
-* [ ] `/health/ready` reports Redis state.
-* [ ] Metrics endpoint returns expected format if enabled.
+* [x] `/health/live` returns ok.
+* [x] `/health/ready` checks SQLite.
+* [x] `/health/ready` reports Redis state.
+* [x] Metrics endpoint returns expected format if enabled.
 
 ---
 
@@ -4059,7 +4059,7 @@ CMD ["/app/hub"]
 
 Tasks:
 
-* [ ] Add Dockerfile.
+* [x] Add Dockerfile.
 * [ ] Ensure templates are available inside container.
 * [ ] Ensure static files are available inside container.
 * [ ] Ensure app can write to `/app/data`.
