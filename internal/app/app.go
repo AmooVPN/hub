@@ -157,7 +157,10 @@ func (r *Runner) buildServer() *fiber.App {
 	})
 
 	app.Use(recover.New())
+	app.Use(r.securityHeadersMiddleware())
 	app.Use(r.requestIDMiddleware())
+	app.Use(r.csrfMiddleware())
+	app.Static("/static", staticAssetDir())
 	if r.cfg.MetricsEnabled && r.metrics != nil {
 		app.Use(r.metricsMiddleware())
 	}
@@ -1057,7 +1060,7 @@ func (t *attemptTracker) blocked(key string) bool {
 }
 
 func renderPage(title, body string) string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>` + html.EscapeString(title) + `</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="bg-body-tertiary">` + body + `<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script></body></html>`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>` + html.EscapeString(title) + `</title><link href="/static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet"></head><body class="bg-body-tertiary">` + body + `<script>(function(){function token(){var match=document.cookie.match(/(?:^|; )` + csrfCookieName + `=([^;]+)/);return match?decodeURIComponent(match[1]):"";}function apply(){var value=token();if(!value){return;}document.querySelectorAll('form').forEach(function(form){var method=(form.getAttribute('method')||'get').toLowerCase();if(method==='get'){return;}if(form.querySelector('input[name="` + csrfFormField + `"]')){return;}var input=document.createElement('input');input.type='hidden';input.name='` + csrfFormField + `';input.value=value;form.appendChild(input);});}apply();document.addEventListener('DOMContentLoaded',apply);document.addEventListener('htmx:afterSwap',apply);})();</script><script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script></body></html>`
 }
 
 func renderLoginPage(message, appName string) string {

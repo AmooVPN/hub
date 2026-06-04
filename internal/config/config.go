@@ -38,6 +38,8 @@ type Config struct {
 	SMTPFrom                string
 	TrustProxy              bool
 	TrustedProxies          []string
+	PanelURLStrictMode      bool
+	PanelURLAllowPrivate    bool
 	MaxUploadSizeMB         int
 	InitialAdminUsername    string
 	InitialAdminPassword    string
@@ -68,6 +70,7 @@ func Load() (*Config, error) {
 		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:                os.Getenv("SMTP_FROM"),
 		TrustedProxies:          splitEnvList(os.Getenv("TRUSTED_PROXIES")),
+		PanelURLAllowPrivate:    true,
 		InitialAdminUsername:    getEnv("INITIAL_ADMIN_USERNAME", "admin"),
 		InitialAdminPassword:    getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
 		InitialAdminEmail:       os.Getenv("INITIAL_ADMIN_EMAIL"),
@@ -103,6 +106,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if c.TrustProxy, err = parseBoolEnv("TRUST_PROXY", false); err != nil {
+		return nil, err
+	}
+	if c.PanelURLStrictMode, err = parseBoolEnv("PANEL_URL_STRICT_MODE", false); err != nil {
+		return nil, err
+	}
+	if c.PanelURLAllowPrivate, err = parseBoolEnv("PANEL_URL_ALLOW_PRIVATE", true); err != nil {
 		return nil, err
 	}
 	if c.SMTPPort, err = parseIntEnv("SMTP_PORT", 25); err != nil {

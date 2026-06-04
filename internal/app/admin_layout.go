@@ -43,7 +43,7 @@ func renderAdminShell(appName string, adminRole string, activePage string, conte
 		nav.WriteString(`<a class="` + class + ` rounded px-3 py-2" href="` + item.Href + `">` + html.EscapeString(item.Label) + `</a>`)
 	}
 
-	return renderPage(appName+" Admin", `<script src="https://unpkg.com/htmx.org@1.9.12"></script><style>
+ 	return renderPage(appName+" Admin", `<script src="/static/vendor/htmx/htmx.min.js"></script><style>
 .admin-shell{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
 .admin-sidebar{position:sticky;top:0;height:100vh;overflow:auto;background:var(--bs-body-bg);border-right:1px solid var(--bs-border-color)}
 .admin-sidebar .nav-link{display:block}

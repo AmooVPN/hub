@@ -4416,28 +4416,28 @@ Tasks:
 
 Before release:
 
-* [ ] No plaintext passwords in DB.
-* [ ] No panel passwords in logs.
-* [ ] No JWTs in logs.
-* [ ] No refresh tokens in logs.
-* [ ] No subscription tokens in logs.
-* [ ] CSRF protection on HTML forms.
-* [ ] Rate limiting on login.
-* [ ] Rate limiting on API auth.
-* [ ] Secure cookies in production.
-* [ ] HTTPOnly cookies.
-* [ ] SameSite cookies.
-* [ ] Input validation.
-* [ ] Output escaping.
-* [ ] Zip-slip protection.
-* [ ] SQLite import validation.
-* [ ] RBAC checks on backend.
-* [ ] UI permission hiding.
-* [ ] Security headers.
-* [ ] Request size limits.
-* [ ] Upload size limits.
-* [ ] Timeout on remote panel calls.
-* [ ] SSRF protection for panel base URLs where possible.
+* [x] No plaintext passwords in DB.
+* [x] No panel passwords in logs.
+* [x] No JWTs in logs.
+* [x] No refresh tokens in logs.
+* [x] No subscription tokens in logs.
+* [x] CSRF protection on HTML forms.
+* [x] Rate limiting on login.
+* [x] Rate limiting on API auth.
+* [x] Secure cookies in production.
+* [x] HTTPOnly cookies.
+* [x] SameSite cookies.
+* [x] Input validation.
+* [x] Output escaping.
+* [x] Zip-slip protection.
+* [x] SQLite import validation.
+* [x] RBAC checks on backend.
+* [x] UI permission hiding.
+* [x] Security headers.
+* [x] Request size limits.
+* [x] Upload size limits.
+* [x] Timeout on remote panel calls.
+* [x] SSRF protection for panel base URLs where possible.
 
 ---
 
@@ -4462,11 +4462,11 @@ PANEL_URL_ALLOW_PRIVATE=false
 
 Tasks:
 
-* [ ] Validate panel URL.
-* [ ] Reject unsupported schemes.
-* [ ] Normalize base URL.
-* [ ] Add timeout.
-* [ ] Add strict mode later.
+* [x] Validate panel URL.
+* [x] Reject unsupported schemes.
+* [x] Normalize base URL.
+* [x] Add timeout.
+* [x] Add strict mode later.
 
 ---
 
@@ -4491,10 +4491,10 @@ Because Bootstrap/HTMX may be loaded locally, avoid external CDNs in production.
 
 Tasks:
 
-* [ ] Vendor Bootstrap assets locally.
-* [ ] Vendor HTMX locally.
-* [ ] Add security headers middleware.
-* [ ] Add CSP compatible with local assets.
+* [x] Vendor Bootstrap assets locally.
+* [x] Vendor HTMX locally.
+* [x] Add security headers middleware.
+* [x] Add CSP compatible with local assets.
 
 ---
 
@@ -4519,8 +4519,8 @@ Custom JS
 
 Tasks:
 
-* [ ] Place vendor assets in `web/static/vendor`.
-* [ ] Reference local assets in templates.
+* [x] Place vendor assets in `web/static/vendor`.
+* [x] Reference local assets in templates.
 * [ ] Add cache headers.
 * [ ] Add asset versioning later.
 

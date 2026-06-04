@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -66,6 +67,9 @@ func (r *Runner) postAdminPanelCreate(c *fiber.Ctx) error {
 	if err := validatePanelForm(form, true); err != nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderPanelFormPage("New Panel", "/admin/panels", form, r.cfg.AppName, admin.Role, []string{err.Error()}, false))
 	}
+	if err := validatePanelBaseURLPolicy(form.BaseURL, r.cfg.PanelURLStrictMode, r.cfg.PanelURLAllowPrivate); err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderPanelFormPage("New Panel", "/admin/panels", form, r.cfg.AppName, admin.Role, []string{err.Error()}, false))
+	}
 	encryptedPassword, err := security.Encrypt(form.Password, r.cfg.HUBSecretKey)
 	if err != nil {
 		return err
@@ -117,6 +121,9 @@ func (r *Runner) postAdminPanelUpdate(c *fiber.Ctx) error {
 	}
 	form := parsePanelForm(c)
 	if err := validatePanelForm(form, false); err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderPanelFormPage("Edit Panel", "/admin/panels/"+c.Params("id"), form, r.cfg.AppName, admin.Role, []string{err.Error()}, true))
+	}
+	if err := validatePanelBaseURLPolicy(form.BaseURL, r.cfg.PanelURLStrictMode, r.cfg.PanelURLAllowPrivate); err != nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderPanelFormPage("Edit Panel", "/admin/panels/"+c.Params("id"), form, r.cfg.AppName, admin.Role, []string{err.Error()}, true))
 	}
 	panel.Name = form.Name
@@ -375,6 +382,27 @@ func validatePanelBaseURL(raw string) error {
 	return nil
 }
 
+func validatePanelBaseURLPolicy(raw string, strictMode, allowPrivate bool) error {
+	parsed, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	if err != nil {
+		return errors.New("base url is invalid")
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return nil
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		if strictMode || !allowPrivate {
+			return errors.New("base url points to a private address")
+		}
+	}
+	return nil
+}
+
 func normalizeBaseURL(raw string) string {
 	return strings.TrimRight(strings.TrimSpace(raw), "/")
 }
@@ -458,7 +486,7 @@ func renderPanelFormPage(title, action string, form panelForm, appName string, a
 	if editing {
 		passwordNote = `<div class="form-text">Leave blank to keep current password.</div>`
 	}
-	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(title) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(appName) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="` + html.EscapeString(form.Name) + `" required></div><div><label class="form-label" for="base_url">Base URL</label><input class="form-control" id="base_url" name="base_url" value="` + html.EscapeString(form.BaseURL) + `" placeholder="https://panel.example.com" required></div><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">` + passwordLabel + `</label><input class="form-control" id="password" name="password" type="password"` + func() string {
+	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(title) + `</h1><p class="text-body-secondary mb-0">` + html.EscapeString(appName) + `</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/panels">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="` + html.EscapeString(form.Name) + `" required></div><div><label class="form-label" for="base_url">Base URL</label><input class="form-control" id="base_url" name="base_url" value="` + html.EscapeString(form.BaseURL) + `" placeholder="https://panel.example.com" required><div class="form-text text-warning">Public deployments should avoid private IP panel URLs.</div></div><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">` + passwordLabel + `</label><input class="form-control" id="password" name="password" type="password"` + func() string {
 		if editing {
 			return ""
 		}
