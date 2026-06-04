@@ -111,7 +111,7 @@ func (r *Runner) postClientAPILogin(c *fiber.Ctx) error {
 	}
 
 	client, err := r.clients.FindByUsername(c.UserContext(), req.Username)
-	if err != nil || client == nil || client.Status == "disabled" || security.ComparePassword(req.Password, client.PasswordHash) != nil {
+	if err != nil || client == nil || client.Status == "disabled" || client.Status == "deleted" || security.ComparePassword(req.Password, client.PasswordHash) != nil {
 		r.loginLocks.fail(key)
 		_ = r.logAudit(c.UserContext(), "client", nil, "api_login_failed", "client", nil, map[string]any{"username": req.Username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 		return apiError(c, fiber.StatusUnauthorized, "invalid_credentials", "Invalid username or password")
@@ -148,7 +148,7 @@ func (r *Runner) postClientAPIRefresh(c *fiber.Ctx) error {
 		return apiError(c, fiber.StatusUnauthorized, "invalid_refresh_token", "Invalid refresh token")
 	}
 	client, err := r.loadClientByID(ctx, stored.ClientID)
-	if err != nil || client == nil || client.Status == "disabled" {
+	if err != nil || client == nil || client.Status == "disabled" || client.Status == "deleted" {
 		return apiError(c, fiber.StatusUnauthorized, "invalid_refresh_token", "Invalid refresh token")
 	}
 	if err := r.refreshes.RevokeByHash(ctx, refreshHash); err != nil {
@@ -338,7 +338,7 @@ func (r *Runner) loadClientFromBearer(c *fiber.Ctx) (*models.Client, error) {
 		return nil, err
 	}
 	client, err := r.loadClientByID(c.UserContext(), clientID)
-	if err != nil || client == nil || client.Status == "disabled" {
+	if err != nil || client == nil || client.Status == "disabled" || client.Status == "deleted" {
 		return nil, errors.New("client not found")
 	}
 	return client, nil

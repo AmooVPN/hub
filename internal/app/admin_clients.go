@@ -101,14 +101,6 @@ func (r *Runner) postAdminClientCreate(c *fiber.Ctx) error {
 	if form.Status != "" && form.Status != "active" && form.Status != "disabled" {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{"invalid status"}))
 	}
-	hash, err := security.HashPassword(form.Password)
-	if err != nil {
-		return err
-	}
-	token, err := security.RandomToken(32)
-	if err != nil {
-		return err
-	}
 	limit, err := parseClientLimit(form.TrafficLimitText)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{err.Error()}))
@@ -117,11 +109,8 @@ func (r *Runner) postAdminClientCreate(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{err.Error()}))
 	}
-	client := &models.Client{Username: form.Username, DisplayName: form.DisplayName, Email: form.Email, Status: defaultClientStatus(form.Status), TrafficLimitBytes: limit, ExpiryTime: expiry, PasswordHash: hash, SubscriptionToken: token, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
-	if err := client.Validate(); err != nil {
-		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{err.Error()}))
-	}
-	if err := r.clients.Create(c.UserContext(), client); err != nil {
+	client := &models.Client{Username: form.Username, DisplayName: form.DisplayName, Email: form.Email, Status: defaultClientStatus(form.Status), TrafficLimitBytes: limit, ExpiryTime: expiry, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	if err := r.clientsSvc.Create(c.UserContext(), client, form.Password); err != nil {
 		return err
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_create", "client", &client.ID, map[string]any{"username": client.Username, "status": client.Status})
@@ -206,7 +195,7 @@ func (r *Runner) postAdminClientUpdate(c *fiber.Ctx) error {
 		updated.ExpiryTime = &expiry
 	}
 	updated.UpdatedAt = time.Now().UTC()
-	if err := r.clients.Update(c.UserContext(), &updated); err != nil {
+	if err := r.clientsSvc.Update(c.UserContext(), &updated); err != nil {
 		return err
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_update", "client", &updated.ID, map[string]any{"username": updated.Username, "status": updated.Status})
@@ -222,7 +211,7 @@ func (r *Runner) postAdminClientDelete(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	if err := r.clients.Delete(c.UserContext(), client.ID); err != nil {
+	if err := r.clientsSvc.Delete(c.UserContext(), client.ID); err != nil {
 		return err
 	}
 	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
@@ -327,7 +316,7 @@ func (r *Runner) postAdminClientStatus(c *fiber.Ctx, status string) error {
 	if err != nil {
 		return err
 	}
-	if err := r.clients.UpdateStatus(c.UserContext(), client.ID, status); err != nil {
+	if err := r.clientsSvc.SetStatus(c.UserContext(), client.ID, status); err != nil {
 		return err
 	}
 	client.Status = status
@@ -351,11 +340,7 @@ func (r *Runner) postAdminClientResetPassword(c *fiber.Ctx) error {
 			return err
 		}
 	}
-	hash, err := security.HashPassword(newPassword)
-	if err != nil {
-		return err
-	}
-	if err := r.clients.UpdatePassword(c.UserContext(), client.ID, hash); err != nil {
+	if _, err := r.clientsSvc.ResetPassword(c.UserContext(), client.ID, newPassword); err != nil {
 		return err
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_password_reset", "client", &client.ID, nil)
@@ -371,12 +356,9 @@ func (r *Runner) postAdminClientRegenerateSubscriptionToken(c *fiber.Ctx) error 
 	if err != nil {
 		return err
 	}
-	newToken, err := security.RandomToken(32)
-	if err != nil {
-		return err
-	}
 	oldToken := client.SubscriptionToken
-	if err := r.clients.UpdateSubscriptionToken(c.UserContext(), client.ID, newToken); err != nil {
+	newToken, err := r.clientsSvc.RegenerateToken(c.UserContext(), client.ID)
+	if err != nil {
 		return err
 	}
 	r.invalidateSubscriptionCache(c.UserContext(), oldToken)
@@ -1152,9 +1134,11 @@ func renderAdminClientDetailPage(client *models.Client, summary clientSummary, a
 		statusBadge = "warning"
 	case "disabled":
 		statusBadge = "dark"
+	case "deleted":
+		statusBadge = "secondary"
 	}
 	buttons := `<div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/edit">Edit</a><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Manage attachments</a><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/regenerate-token"><button class="btn btn-outline-primary btn-sm" type="submit">Regenerate subscription token</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/reset-password"><button class="btn btn-outline-warning btn-sm" type="submit">Reset password</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/delete" onsubmit="return confirm('Delete this client?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form>`
-	if client.Status == "disabled" {
+	if client.Status == "disabled" || client.Status == "deleted" {
 		buttons += `<form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/enable"><button class="btn btn-outline-success btn-sm" type="submit">Enable</button></form>`
 	} else {
 		buttons += `<form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/disable"><button class="btn btn-outline-danger btn-sm" type="submit">Disable</button></form>`

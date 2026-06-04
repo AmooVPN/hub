@@ -2121,18 +2121,18 @@ Responsibilities:
 
 Tasks:
 
-* [ ] Create client service.
+* [x] Create client service.
 * [ ] Create client repository.
-* [ ] Add create client.
-* [ ] Add update client.
-* [ ] Add delete client.
+* [x] Add create client.
+* [x] Add update client.
+* [x] Add delete client.
 * [x] Add enable/disable.
 * [ ] Add password change.
-* [ ] Add password reset.
-* [ ] Add expiry calculation.
-* [ ] Add traffic calculation.
-* [ ] Add subscription token generation.
-* [ ] Add audit logs.
+* [x] Add password reset.
+* [x] Add expiry calculation.
+* [x] Add traffic calculation.
+* [x] Add subscription token generation.
+* [x] Add audit logs.
 
 ---
 
@@ -2221,9 +2221,9 @@ ALTER TABLE clients ADD COLUMN deleted_at DATETIME;
 
 Tasks:
 
-* [ ] Design soft delete.
-* [ ] For MVP, hard delete can be disabled or owner-only.
-* [ ] Prevent accidental removal of remote clients unless explicitly confirmed.
+* [x] Design soft delete.
+* [x] For MVP, hard delete can be disabled or owner-only.
+* [x] Prevent accidental removal of remote clients unless explicitly confirmed.
 
 ---
 
@@ -2345,8 +2345,8 @@ Rules:
 
 Tasks:
 
-* [ ] Add remote identity generator.
-* [ ] Add tests.
+* [x] Add remote identity generator.
+* [x] Add tests.
 * [ ] Prevent duplicates.
 
 ---

@@ -42,7 +42,7 @@ func (r *Runner) servePublicSubscription(c *fiber.Ctx, format string) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "subscription not found")
 	}
-	if client.Status == "disabled" {
+	if client.Status == "disabled" || client.Status == "deleted" {
 		return fiber.NewError(fiber.StatusForbidden, "subscription disabled")
 	}
 	summary, err := r.loadClientSummary(c.UserContext(), client)

@@ -10,6 +10,9 @@ func DetermineClientStatus(client *models.Client, totalBytes int64, now time.Tim
 	if client == nil {
 		return "unknown"
 	}
+	if client.Status == "deleted" {
+		return "deleted"
+	}
 	if client.Status == "disabled" {
 		return "disabled"
 	}

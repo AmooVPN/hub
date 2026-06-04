@@ -28,6 +28,7 @@ type AdminRepository interface {
 type ClientRepository interface {
 	Count(context.Context) (int64, error)
 	Create(context.Context, *models.Client) error
+	FindByID(context.Context, int64) (*models.Client, error)
 	FindByUsername(context.Context, string) (*models.Client, error)
 	Delete(context.Context, int64) error
 	Update(context.Context, *models.Client) error
@@ -260,8 +261,13 @@ func (r *sqliteClientRepository) Create(ctx context.Context, client *models.Clie
 	return nil
 }
 
+func (r *sqliteClientRepository) FindByID(ctx context.Context, id int64) (*models.Client, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, username, password_hash, display_name, email, status, traffic_limit_bytes, expiry_time, subscription_token, created_at, updated_at FROM clients WHERE id = ?`, id)
+	return scanClient(row)
+}
+
 func (r *sqliteClientRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM clients WHERE id = ?`, id)
+	_, err := r.db.ExecContext(ctx, `UPDATE clients SET status = 'deleted', updated_at = ? WHERE id = ?`, time.Now().UTC(), id)
 	return err
 }
 

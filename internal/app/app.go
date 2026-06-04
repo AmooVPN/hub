@@ -31,6 +31,7 @@ type Runner struct {
 	redis          *redis.Client
 	admins         repositories.AdminRepository
 	clients        repositories.ClientRepository
+	clientsSvc     *services.ClientService
 	refreshes      repositories.RefreshTokenRepository
 	panels         repositories.PanelRepository
 	inbounds       repositories.InboundRepository
@@ -110,6 +111,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		redis:          rdb,
 		admins:         admins,
 		clients:        clients,
+		clientsSvc:     services.NewClientService(clients),
 		refreshes:      refreshes,
 		panels:         panels,
 		inbounds:       inbounds,
@@ -603,7 +605,7 @@ func (r *Runner) postClientLogin(c *fiber.Ctx) error {
 	}
 
 	client, err := r.clients.FindByUsername(c.UserContext(), username)
-	if err != nil || client == nil || client.Status == "disabled" || security.ComparePassword(password, client.PasswordHash) != nil {
+	if err != nil || client == nil || client.Status == "disabled" || client.Status == "deleted" || security.ComparePassword(password, client.PasswordHash) != nil {
 		r.loginLocks.fail(key)
 		return c.Status(fiber.StatusUnauthorized).Type("html").SendString(renderClientLoginPage("Invalid credentials.", r.cfg.AppName))
 	}
@@ -840,7 +842,7 @@ func (r *Runner) loadClientFromRequest(c *fiber.Ctx) (*models.Client, bool) {
 		return nil, false
 	}
 	client, err := r.loadClientByID(c.UserContext(), clientID)
-	if err != nil || client == nil || client.Status == "disabled" {
+	if err != nil || client == nil || client.Status == "disabled" || client.Status == "deleted" {
 		return nil, false
 	}
 	return client, true
