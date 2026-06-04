@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/xui"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/xui"
 )
 
 type fakeHealthProbe struct {

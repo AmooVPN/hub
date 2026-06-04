@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/security"
 )
 
 func (r *Runner) withPanelSyncLock(ctx context.Context, panelID int64, fn func() error) error {

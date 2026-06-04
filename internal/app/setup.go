@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/bootstrap"
-	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/bootstrap"
+	"github.com/AmooVPN/hub/internal/security"
 )
 
 type setupForm struct {

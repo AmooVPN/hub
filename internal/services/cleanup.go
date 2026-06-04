@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/repositories"
+	"github.com/AmooVPN/hub/internal/repositories"
 )
 
 type CleanupReport struct {

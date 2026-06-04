@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/database"
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/database"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func TestSyncJobRepositoryCreateUpdateFindByID(t *testing.T) {

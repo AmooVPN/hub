@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/repositories"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/repositories"
 )
 
 type WebhookEnvelope struct {

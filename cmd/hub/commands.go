@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/bootstrap"
-	"github.com/AmooVPM/hub/internal/config"
-	"github.com/AmooVPM/hub/internal/database"
-	app "github.com/AmooVPM/hub/internal/app"
-	"github.com/AmooVPM/hub/internal/repositories"
-	"github.com/AmooVPM/hub/internal/services"
-	"github.com/AmooVPM/hub/internal/version"
+	"github.com/AmooVPN/hub/internal/bootstrap"
+	"github.com/AmooVPN/hub/internal/config"
+	"github.com/AmooVPN/hub/internal/database"
+	app "github.com/AmooVPN/hub/internal/app"
+	"github.com/AmooVPN/hub/internal/repositories"
+	"github.com/AmooVPN/hub/internal/services"
+	"github.com/AmooVPN/hub/internal/version"
 )
 
 type runnable interface {

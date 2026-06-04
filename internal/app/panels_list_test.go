@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func TestRenderPanelListPageShowsStatusFilter(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 type auditLogFilters struct {

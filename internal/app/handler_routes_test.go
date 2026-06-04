@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/security"
 )
 
 func TestAdminSettingsRouteWithAdminContext(t *testing.T) {

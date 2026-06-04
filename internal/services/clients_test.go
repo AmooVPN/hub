@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/AmooVPM/hub/internal/database"
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/repositories"
+	"github.com/AmooVPN/hub/internal/database"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/repositories"
 )
 
 func TestClientServiceCreateUpdateDeleteAndToken(t *testing.T) {

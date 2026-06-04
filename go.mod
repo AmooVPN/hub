@@ -1,4 +1,4 @@
-module github.com/AmooVPM/hub
+module github.com/AmooVPN/hub
 
 go 1.22
 

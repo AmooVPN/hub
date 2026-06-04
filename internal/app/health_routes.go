@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/database"
-	"github.com/AmooVPM/hub/internal/version"
+	"github.com/AmooVPN/hub/internal/database"
+	"github.com/AmooVPN/hub/internal/version"
 )
 
 type systemHealthSnapshot struct {

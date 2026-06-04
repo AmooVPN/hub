@@ -4,7 +4,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/security"
 )
 
 type adminNavItem struct {

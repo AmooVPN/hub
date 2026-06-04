@@ -3,7 +3,7 @@ package services
 import (
 	"time"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func DetermineClientStatus(client *models.Client, totalBytes int64, now time.Time) string {

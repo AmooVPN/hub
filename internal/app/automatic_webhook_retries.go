@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func (r *Runner) startAutomaticWebhookRetries() {

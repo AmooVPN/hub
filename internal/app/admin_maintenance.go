@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/security"
 )
 
 func (r *Runner) getAdminMaintenance(c *fiber.Ctx) error {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/openapi"
+	"github.com/AmooVPN/hub/internal/openapi"
 )
 
 func (r *Runner) getOpenAPIJSON(c *fiber.Ctx) error {

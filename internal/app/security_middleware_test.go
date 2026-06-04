@@ -11,7 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/config"
+	"github.com/AmooVPN/hub/internal/config"
 )
 
 func TestSecurityHeadersApplied(t *testing.T) {

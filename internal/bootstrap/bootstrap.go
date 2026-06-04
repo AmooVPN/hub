@@ -8,10 +8,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/AmooVPM/hub/internal/config"
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/repositories"
-	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/config"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/repositories"
+	"github.com/AmooVPN/hub/internal/security"
 )
 
 var ErrInitialSetupCompleted = errors.New("initial setup is already complete")

@@ -7,7 +7,7 @@ Status: Planning Phase
 Repository:
 
 ```txt
-github.com/AmooVPM/hub
+github.com/AmooVPN/hub
 ```
 
 Project Name:

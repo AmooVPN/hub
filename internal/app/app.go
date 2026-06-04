@@ -16,13 +16,13 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/AmooVPM/hub/internal/config"
-	"github.com/AmooVPM/hub/internal/database"
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/repositories"
-	"github.com/AmooVPM/hub/internal/security"
-	"github.com/AmooVPM/hub/internal/services"
-	"github.com/AmooVPM/hub/internal/version"
+	"github.com/AmooVPN/hub/internal/config"
+	"github.com/AmooVPN/hub/internal/database"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/repositories"
+	"github.com/AmooVPN/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/services"
+	"github.com/AmooVPN/hub/internal/version"
 )
 
 type Runner struct {

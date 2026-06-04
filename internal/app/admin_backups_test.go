@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/security"
-	"github.com/AmooVPM/hub/internal/services"
+	"github.com/AmooVPN/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/services"
 )
 
 func TestRenderAdminBackupsPageHidesDeleteForAdmin(t *testing.T) {

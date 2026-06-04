@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func TestAuditRepositoryListByTarget(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func TestRemoteAttachmentIdentity(t *testing.T) {

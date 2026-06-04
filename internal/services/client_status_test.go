@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func TestDetermineClientStatus(t *testing.T) {

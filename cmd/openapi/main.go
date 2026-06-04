@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/AmooVPM/hub/internal/openapi"
+	"github.com/AmooVPN/hub/internal/openapi"
 )
 
 func main() {

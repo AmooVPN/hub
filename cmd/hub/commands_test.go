@@ -10,8 +10,8 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/AmooVPM/hub/internal/config"
-	"github.com/AmooVPM/hub/internal/database"
+	"github.com/AmooVPN/hub/internal/config"
+	"github.com/AmooVPN/hub/internal/database"
 )
 
 type fakeRunner struct{ ran bool }

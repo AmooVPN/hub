@@ -11,9 +11,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/config"
-	"github.com/AmooVPM/hub/internal/database"
-	"github.com/AmooVPM/hub/internal/services"
+	"github.com/AmooVPN/hub/internal/config"
+	"github.com/AmooVPN/hub/internal/database"
+	"github.com/AmooVPN/hub/internal/services"
 )
 
 func TestMetricsEndpointRequiresToken(t *testing.T) {

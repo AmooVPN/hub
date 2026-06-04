@@ -34,7 +34,7 @@ jobs:
         run: |
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           mkdir -p dist
-          GOOS=linux GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/AmooVPM/hub/internal/version.Version=${VERSION} -X github.com/AmooVPM/hub/internal/version.Commit=${COMMIT} -X github.com/AmooVPM/hub/internal/version.Date=${DATE}" -o dist/hub-linux-${{ matrix.goarch }} ./cmd/hub
+          GOOS=linux GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/AmooVPN/hub/internal/version.Version=${VERSION} -X github.com/AmooVPN/hub/internal/version.Commit=${COMMIT} -X github.com/AmooVPN/hub/internal/version.Date=${DATE}" -o dist/hub-linux-${{ matrix.goarch }} ./cmd/hub
 
       - name: Create checksum
         run: sha256sum dist/hub-linux-${{ matrix.goarch }} > dist/hub-linux-${{ matrix.goarch }}.sha256

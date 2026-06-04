@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 func TestClientRepositoryUpdateSubscriptionToken(t *testing.T) {

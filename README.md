@@ -25,7 +25,7 @@ Central multi-panel management hub for 3x-ui / Xray deployments.
 1. Install `ahub`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AmooVPM/hub/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AmooVPN/hub/master/install.sh | sh
 ```
 
 The installer checks for `git` first and installs it on supported Linux distros if it is missing.

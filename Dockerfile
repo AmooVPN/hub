@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/AmooVPM/hub/internal/version.Version=${VERSION} -X github.com/AmooVPM/hub/internal/version.Commit=${COMMIT} -X github.com/AmooVPM/hub/internal/version.Date=${DATE}" -o /out/hub ./cmd/hub
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/AmooVPN/hub/internal/version.Version=${VERSION} -X github.com/AmooVPN/hub/internal/version.Commit=${COMMIT} -X github.com/AmooVPN/hub/internal/version.Date=${DATE}" -o /out/hub ./cmd/hub
 
 FROM alpine:3.20
 

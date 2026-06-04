@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-REPO_URL=${AHUB_REPO:-https://github.com/AmooVPM/hub.git}
+REPO_URL=${AHUB_REPO:-https://github.com/AmooVPN/hub.git}
 INSTALL_DIR=${AHUB_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ahub}
 
 run_as_root() {

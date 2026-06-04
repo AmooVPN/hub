@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AmooVPM/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/models"
 )
 
 type AdminRepository interface {

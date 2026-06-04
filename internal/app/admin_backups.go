@@ -9,9 +9,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/AmooVPM/hub/internal/models"
-	"github.com/AmooVPM/hub/internal/security"
-	"github.com/AmooVPM/hub/internal/services"
+	"github.com/AmooVPN/hub/internal/models"
+	"github.com/AmooVPN/hub/internal/security"
+	"github.com/AmooVPN/hub/internal/services"
 )
 
 func (r *Runner) getAdminBackups(c *fiber.Ctx) error {
