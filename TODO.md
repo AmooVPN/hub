@@ -4847,6 +4847,12 @@ MVP status: complete.
 
 Version `v0.1.0` should include:
 
+Status:
+
+```txt
+Released
+```
+
 ```txt
 Foundation
 Admin auth
@@ -4884,6 +4890,12 @@ Multi-tenant organizations
 
 Add:
 
+Status:
+
+```txt
+Planned
+```
+
 ```txt
 Traffic charts
 Scheduled traffic sync
@@ -4902,6 +4914,12 @@ Improved config generation
 
 Add:
 
+Status:
+
+```txt
+Planned
+```
+
 ```txt
 Clash subscription output
 Sing-box subscription output
@@ -4917,6 +4935,12 @@ Admin API preview
 # 155. v1.0.0 Scope
 
 Production-ready:
+
+Status:
+
+```txt
+Future stable release
+```
 
 ```txt
 Stable connector
@@ -4940,190 +4964,192 @@ Follow this order exactly.
 
 ## Phase 1 — Foundation
 
-* [ ] Create repo structure.
-* [ ] Initialize Go module.
-* [ ] Add Fiber.
-* [ ] Add config loader.
-* [ ] Add logger.
-* [ ] Add SQLite.
-* [ ] Add Redis.
-* [ ] Add migration runner.
-* [ ] Add base layout.
-* [ ] Add Bootstrap 5 local assets.
-* [ ] Add HTMX local assets.
-* [ ] Add health endpoints.
+* [x] Create repo structure.
+* [x] Initialize Go module.
+* [x] Add Fiber.
+* [x] Add config loader.
+* [x] Add logger.
+* [x] Add SQLite.
+* [x] Add Redis.
+* [x] Add migration runner.
+* [x] Add base layout.
+* [x] Add Bootstrap 5 local assets.
+* [x] Add HTMX local assets.
+* [x] Add health endpoints.
 
 ---
 
 ## Phase 2 — Database and Models
 
-* [ ] Add migrations.
-* [ ] Add models.
-* [ ] Add repositories.
-* [ ] Add transaction helper.
-* [ ] Add tests for repositories.
+* [x] Add migrations.
+* [x] Add models.
+* [x] Add repositories.
+* [x] Add transaction helper.
+* [x] Add tests for repositories.
 
 ---
 
 ## Phase 3 — Security Foundation
 
-* [ ] Add password hashing.
-* [ ] Add encryption service.
-* [ ] Add session service.
-* [ ] Add JWT service.
-* [ ] Add refresh token service.
-* [ ] Add CSRF protection.
-* [ ] Add security headers.
-* [ ] Add rate limiter.
+* [x] Add password hashing.
+* [x] Add encryption service.
+* [x] Add session service.
+* [x] Add JWT service.
+* [x] Add refresh token service.
+* [x] Add CSRF protection.
+* [x] Add security headers.
+* [x] Add rate limiter.
 
 ---
 
 ## Phase 4 — Admin Auth and Dashboard
 
-* [ ] Add initial admin bootstrap.
-* [ ] Add admin login.
-* [ ] Add admin logout.
-* [ ] Add admin dashboard.
-* [ ] Add RBAC middleware.
-* [ ] Add admin user management.
+* [x] Add initial admin bootstrap.
+* [x] Add admin login.
+* [x] Add admin logout.
+* [x] Add admin dashboard.
+* [x] Add RBAC middleware.
+* [x] Add admin user management.
 
 ---
 
 ## Phase 5 — Client Auth and Portal
 
-* [ ] Add client login.
-* [ ] Add client logout.
-* [ ] Add client dashboard.
-* [ ] Add client profile.
-* [ ] Add client password change.
+* [x] Add client login.
+* [x] Add client logout.
+* [x] Add client dashboard.
+* [x] Add client profile.
+* [x] Add client password change.
 
 ---
 
 ## Phase 6 — Client API
 
-* [ ] Add API route group.
-* [ ] Add API error format.
-* [ ] Add client API login.
-* [ ] Add client API refresh.
-* [ ] Add client API logout.
-* [ ] Add client API JWT middleware.
-* [ ] Add `/me`.
-* [ ] Add `/subscription`.
-* [ ] Add `/configs`.
-* [ ] Add `/usage`.
-* [ ] Add `/status`.
+* [x] Add API route group.
+* [x] Add API error format.
+* [x] Add client API login.
+* [x] Add client API refresh.
+* [x] Add client API logout.
+* [x] Add client API JWT middleware.
+* [x] Add `/me`.
+* [x] Add `/subscription`.
+* [x] Add `/configs`.
+* [x] Add `/usage`.
+* [x] Add `/status`.
 
 ---
 
 ## Phase 7 — XUI Connector
 
-* [ ] Add connector struct.
-* [ ] Add login.
-* [ ] Add cookie storage.
-* [ ] Add auto re-login.
-* [ ] Add list inbounds.
-* [ ] Add add client.
-* [ ] Add update client.
-* [ ] Add delete client.
-* [ ] Add traffic read.
-* [ ] Add tests with mock server.
+* [x] Add connector struct.
+* [x] Add login.
+* [x] Add cookie storage.
+* [x] Add auto re-login.
+* [x] Add list inbounds.
+* [x] Add add client.
+* [x] Add update client.
+* [x] Add delete client.
+* [x] Add traffic read.
+* [x] Add tests with mock server.
 
 ---
 
 ## Phase 8 — Panels
 
-* [ ] Add panel CRUD.
-* [ ] Add test connection.
-* [ ] Add clear session.
-* [ ] Add sync panel.
-* [ ] Add panel status UI.
+* [x] Add panel CRUD.
+* [x] Add test connection.
+* [x] Add clear session.
+* [x] Add sync panel.
+* [x] Add panel status UI.
 
 ---
 
 ## Phase 9 — Inbounds
 
-* [ ] Add inbound sync.
-* [ ] Add inbound list.
-* [ ] Add inbound filters.
-* [ ] Add raw JSON viewer.
+* [x] Add inbound sync.
+* [x] Add inbound list.
+* [x] Add inbound filters.
+* [x] Add raw JSON viewer.
 
 ---
 
 ## Phase 10 — Clients
 
-* [ ] Add client CRUD.
-* [ ] Add enable/disable.
-* [ ] Add reset password.
-* [ ] Add regenerate subscription token.
-* [ ] Add usage/status calculations.
+* [x] Add client CRUD.
+* [x] Add enable/disable.
+* [x] Add reset password.
+* [x] Add regenerate subscription token.
+* [x] Add usage/status calculations.
 
 ---
 
 ## Phase 11 — Attachments
 
-* [ ] Add attachment service.
-* [ ] Add attach UI.
-* [ ] Add multi-inbound attach.
-* [ ] Add remote client creation.
-* [ ] Add detach.
-* [ ] Add partial failure handling.
-* [ ] Add traffic sync per attachment.
+* [x] Add attachment service.
+* [x] Add attach UI.
+* [x] Add multi-inbound attach.
+* [x] Add remote client creation.
+* [x] Add detach.
+* [x] Add partial failure handling.
+* [x] Add traffic sync per attachment.
 
 ---
 
 ## Phase 12 — Subscriptions
 
-* [ ] Add raw subscription.
-* [ ] Add base64 subscription.
-* [ ] Add default subscription route.
-* [ ] Add cache.
-* [ ] Add cache invalidation.
-* [ ] Add QR code in portal.
+* [x] Add raw subscription.
+* [x] Add base64 subscription.
+* [x] Add default subscription route.
+* [x] Add cache.
+* [x] Add cache invalidation.
+* [x] Add QR code in portal.
 
 ---
 
 ## Phase 13 — Backup and Restore
 
-* [ ] Add backup export.
-* [ ] Add backup import.
-* [ ] Add backup metadata.
-* [ ] Add pre-import safety backup.
-* [ ] Add backup UI.
-* [ ] Add tests.
+* [x] Add backup export.
+* [x] Add backup import.
+* [x] Add backup metadata.
+* [x] Add pre-import safety backup.
+* [x] Add backup UI.
+* [x] Add tests.
 
 ---
 
 ## Phase 14 — Jobs, Monitoring, Audit
 
-* [ ] Add sync jobs.
-* [ ] Add job UI.
-* [ ] Add audit log writer.
-* [ ] Add audit log viewer.
-* [ ] Add panel health checks.
-* [ ] Add metrics endpoint.
+* [x] Add sync jobs.
+* [x] Add job UI.
+* [x] Add audit log writer.
+* [x] Add audit log viewer.
+* [x] Add panel health checks.
+* [x] Add metrics endpoint.
 
 ---
 
 ## Phase 15 — Docker and Documentation
 
-* [ ] Add Dockerfile.
-* [ ] Add docker-compose.yml.
-* [ ] Add Makefile.
-* [ ] Add README.
-* [ ] Add docs.
-* [ ] Add CI.
+* [x] Add Dockerfile.
+* [x] Add docker-compose.yml.
+* [x] Add Makefile.
+* [x] Add README.
+* [x] Add docs.
+* [x] Add CI.
 
 ---
 
 ## Phase 16 — Polish
 
-* [ ] Improve mobile UI.
-* [ ] Add loading states.
-* [ ] Add empty states.
-* [ ] Add confirmation modals.
-* [ ] Add better error pages.
-* [ ] Add final tests.
-* [ ] Run full manual test.
+* [x] Improve mobile UI.
+* [x] Add loading states.
+* [x] Add empty states.
+* [x] Add confirmation modals.
+* [x] Add better error pages.
+* [x] Add final tests.
+* [x] Run full manual test.
+
+Implementation order status: complete.
 
 ---
 
