@@ -4150,11 +4150,11 @@ Important:
 
 Tasks:
 
-* [ ] Add `docs/reverse-proxy.md`.
-* [ ] Add Nginx example.
-* [ ] Add Caddy example.
-* [ ] Add Cloudflare Tunnel note.
-* [ ] Add HTTPS warning.
+* [x] Add `docs/reverse-proxy.md`.
+* [x] Add Nginx example.
+* [x] Add Caddy example.
+* [x] Add Cloudflare Tunnel note.
+* [x] Add HTTPS warning.
 
 ---
 
@@ -4205,9 +4205,9 @@ dev:
 
 Tasks:
 
-* [ ] Add Makefile.
-* [ ] Ensure all targets work.
-* [ ] Add help target later.
+* [x] Add Makefile.
+* [x] Ensure all targets work.
+* [x] Add help target later.
 
 ---
 
@@ -4226,11 +4226,11 @@ hub backup import <file>
 
 Tasks:
 
-* [ ] Add command parser.
-* [ ] Default command should be `serve`.
-* [ ] Add `healthcheck` for Docker.
-* [ ] Add `create-admin`.
-* [ ] Add migration command.
+* [x] Add command parser.
+* [x] Default command should be `serve`.
+* [x] Add `healthcheck` for Docker.
+* [x] Add `create-admin`.
+* [x] Add migration command.
 * [ ] Add backup commands later.
 
 ---
