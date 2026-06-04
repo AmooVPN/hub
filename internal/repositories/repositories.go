@@ -94,6 +94,7 @@ type WebhookDeliveryRepository interface {
 	Update(context.Context, *models.WebhookDelivery) error
 	FindByID(context.Context, int64) (*models.WebhookDelivery, error)
 	ListByWebhook(context.Context, int64) ([]models.WebhookDelivery, error)
+	ListDueForRetry(context.Context, time.Time, int) ([]models.WebhookDelivery, error)
 }
 
 type sqliteAdminRepository struct{ db *sql.DB }
@@ -877,6 +878,26 @@ func (r *sqliteWebhookDeliveryRepository) FindByID(ctx context.Context, id int64
 
 func (r *sqliteWebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID int64) ([]models.WebhookDelivery, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, webhook_id, event_type, payload_json, status, response_status, response_body, error_message, attempts, next_retry_at, created_at, delivered_at FROM webhook_deliveries WHERE webhook_id = ? ORDER BY id DESC`, webhookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.WebhookDelivery, 0)
+	for rows.Next() {
+		delivery, err := scanWebhookDelivery(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *delivery)
+	}
+	return items, rows.Err()
+}
+
+func (r *sqliteWebhookDeliveryRepository) ListDueForRetry(ctx context.Context, at time.Time, limit int) ([]models.WebhookDelivery, error) {
+	if limit <= 0 {
+		limit = 25
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT id, webhook_id, event_type, payload_json, status, response_status, response_body, error_message, attempts, next_retry_at, created_at, delivered_at FROM webhook_deliveries WHERE status IN ('failed', 'retrying') AND next_retry_at IS NOT NULL AND next_retry_at <= ? ORDER BY next_retry_at ASC LIMIT ?`, at.UTC(), limit)
 	if err != nil {
 		return nil, err
 	}

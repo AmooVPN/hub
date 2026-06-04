@@ -3518,7 +3518,7 @@ GET  /admin/webhooks/:id/deliveries
 Tasks:
 
 * [x] Add webhook management later.
-* [ ] Add delivery retry job later.
+* [x] Add delivery retry job later.
 * [x] Add webhook test action later.
 
 ---

@@ -122,6 +122,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 	runner.server = runner.buildServer()
 	runner.backgroundJobs.Start(context.Background())
 	runner.startAutomaticBackups()
+	runner.startAutomaticWebhookRetries()
 	return runner, nil
 }
 
