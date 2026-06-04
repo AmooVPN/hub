@@ -4777,6 +4777,7 @@ Checksums
 
 Tasks:
 
+* [x] Create release workflow.
 * [ ] Add GoReleaser later.
 * [ ] Add GitHub Container Registry publish later.
 * [ ] Add changelog later.
@@ -4804,10 +4805,10 @@ Docker labels
 
 Tasks:
 
-* [ ] Add version package.
-* [ ] Set version at build time.
-* [ ] Show version in UI.
-* [ ] Show version in health endpoint.
+* [x] Add version package.
+* [x] Set version at build time.
+* [x] Show version in UI.
+* [x] Show version in health endpoint.
 
 ---
 
@@ -4815,28 +4816,30 @@ Tasks:
 
 The MVP is complete when:
 
-* [ ] App starts with Go + Fiber.
-* [ ] SQLite works.
-* [ ] Redis works.
-* [ ] Migrations run.
-* [ ] Admin can log in.
-* [ ] Admin can add a 3x-ui panel.
-* [ ] Admin can test panel connection.
-* [ ] Admin can sync inbounds.
-* [ ] Admin can create a client.
-* [ ] Admin can attach client to at least one inbound.
-* [ ] hub creates remote client in 3x-ui.
-* [ ] Subscription link returns at least raw/base64 configs.
-* [ ] Client can log in to portal.
-* [ ] Client can see configs.
-* [ ] Client can change password.
-* [ ] Client API login returns JWT.
-* [ ] Client API can return subscription URL.
-* [ ] Client API can return usage.
-* [ ] Client API can return remaining time.
-* [ ] Admin can export SQLite backup.
-* [ ] Admin can import SQLite backup.
-* [ ] App runs with Docker Compose.
+* [x] App starts with Go + Fiber.
+* [x] SQLite works.
+* [x] Redis works.
+* [x] Migrations run.
+* [x] Admin can log in.
+* [x] Admin can add a 3x-ui panel.
+* [x] Admin can test panel connection.
+* [x] Admin can sync inbounds.
+* [x] Admin can create a client.
+* [x] Admin can attach client to at least one inbound.
+* [x] hub creates remote client in 3x-ui.
+* [x] Subscription link returns at least raw/base64 configs.
+* [x] Client can log in to portal.
+* [x] Client can see configs.
+* [x] Client can change password.
+* [x] Client API login returns JWT.
+* [x] Client API can return subscription URL.
+* [x] Client API can return usage.
+* [x] Client API can return remaining time.
+* [x] Admin can export SQLite backup.
+* [x] Admin can import SQLite backup.
+* [x] App runs with Docker Compose.
+
+MVP status: complete.
 
 ---
 
