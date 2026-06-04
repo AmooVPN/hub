@@ -23,6 +23,7 @@ import (
 	"github.com/AmooVPM/hub/internal/repositories"
 	"github.com/AmooVPM/hub/internal/security"
 	"github.com/AmooVPM/hub/internal/services"
+	"github.com/AmooVPM/hub/internal/version"
 )
 
 type Runner struct {
@@ -323,7 +324,7 @@ func (r *Runner) health(c *fiber.Ctx) error {
 		"status":  "ok",
 		"app":     r.cfg.AppName,
 		"time":    time.Now().UTC(),
-		"version": "1",
+		"version": version.Full(),
 	})
 }
 
@@ -1061,7 +1062,7 @@ func (t *attemptTracker) blocked(key string) bool {
 }
 
 func renderPage(title, body string) string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="theme-color" content="#0d6efd"><title>` + html.EscapeString(title) + `</title>` + themeScript() + `<link href="` + staticAssetURL("vendor/bootstrap/bootstrap.min.css") + `" rel="stylesheet"></head><body class="bg-body-tertiary"><div id="global-loading-indicator" class="position-fixed top-0 start-0 w-100" style="height:3px;z-index:2000;background:var(--bs-primary);opacity:0;transition:opacity .2s ease;" aria-hidden="true"></div>` + body + `<script>(function(){var pending=0;var indicator=document.getElementById('global-loading-indicator');function token(){var match=document.cookie.match(/(?:^|; )` + csrfCookieName + `=([^;]+)/);return match?decodeURIComponent(match[1]):"";}function syncIndicator(){if(!indicator){return;}indicator.style.opacity=pending>0?'1':'0';}document.addEventListener('htmx:beforeRequest',function(){pending++;syncIndicator();});document.addEventListener('htmx:afterRequest',function(){pending=Math.max(0,pending-1);syncIndicator();});document.addEventListener('submit',function(event){var form=event.target;if(form&&form.matches&&form.matches('form[method="post"], form[method="put"], form[method="delete"], form[method="patch"]')){pending++;syncIndicator();setTimeout(function(){pending=Math.max(0,pending-1);syncIndicator();},0);}});function apply(){var value=token();if(!value){return;}document.querySelectorAll('form').forEach(function(form){var method=(form.getAttribute('method')||'get').toLowerCase();if(method==='get'){return;}if(form.querySelector('input[name="` + csrfFormField + `"]')){return;}var input=document.createElement('input');input.type='hidden';input.name='` + csrfFormField + `';input.value=value;form.appendChild(input);});}apply();document.addEventListener('DOMContentLoaded',apply);document.addEventListener('htmx:afterSwap',apply);})();</script><script src="` + staticAssetURL("vendor/bootstrap/bootstrap.bundle.min.js") + `"></script></body></html>`
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="theme-color" content="#0d6efd"><title>` + html.EscapeString(title) + `</title>` + themeScript() + `<link href="` + staticAssetURL("vendor/bootstrap/bootstrap.min.css") + `" rel="stylesheet"></head><body class="bg-body-tertiary"><div id="global-loading-indicator" class="position-fixed top-0 start-0 w-100" style="height:3px;z-index:2000;background:var(--bs-primary);opacity:0;transition:opacity .2s ease;" aria-hidden="true"></div>` + body + `<footer class="border-top py-3 mt-auto"><div class="container small text-body-secondary d-flex justify-content-between gap-3 flex-wrap"><span>` + html.EscapeString(title) + `</span><span>Version ` + html.EscapeString(version.Full()) + `</span></div></footer><script>(function(){var pending=0;var indicator=document.getElementById('global-loading-indicator');function token(){var match=document.cookie.match(/(?:^|; )` + csrfCookieName + `=([^;]+)/);return match?decodeURIComponent(match[1]):"";}function syncIndicator(){if(!indicator){return;}indicator.style.opacity=pending>0?'1':'0';}document.addEventListener('htmx:beforeRequest',function(){pending++;syncIndicator();});document.addEventListener('htmx:afterRequest',function(){pending=Math.max(0,pending-1);syncIndicator();});document.addEventListener('submit',function(event){var form=event.target;if(form&&form.matches&&form.matches('form[method="post"], form[method="put"], form[method="delete"], form[method="patch"]')){pending++;syncIndicator();setTimeout(function(){pending=Math.max(0,pending-1);syncIndicator();},0);}});function apply(){var value=token();if(!value){return;}document.querySelectorAll('form').forEach(function(form){var method=(form.getAttribute('method')||'get').toLowerCase();if(method==='get'){return;}if(form.querySelector('input[name="` + csrfFormField + `"]')){return;}var input=document.createElement('input');input.type='hidden';input.name='` + csrfFormField + `';input.value=value;form.appendChild(input);});}apply();document.addEventListener('DOMContentLoaded',apply);document.addEventListener('htmx:afterSwap',apply);})();</script><script src="` + staticAssetURL("vendor/bootstrap/bootstrap.bundle.min.js") + `"></script></body></html>`
 }
 
 func renderLoginPage(message, appName string) string {

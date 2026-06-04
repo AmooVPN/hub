@@ -16,6 +16,7 @@ import (
 	"github.com/AmooVPM/hub/internal/database"
 	app "github.com/AmooVPM/hub/internal/app"
 	"github.com/AmooVPM/hub/internal/repositories"
+	"github.com/AmooVPM/hub/internal/version"
 )
 
 type runnable interface {
@@ -53,6 +54,8 @@ func execute(args []string, logger *slog.Logger) error {
 		return runCreateAdmin(logger)
 	case "healthcheck":
 		return runHealthcheck(logger)
+	case "version":
+		return runVersion(os.Stdout)
 	case "backup":
 		if len(rest) > 0 && rest[0] == "export" {
 			return errors.New("backup export is not implemented yet")
@@ -149,13 +152,18 @@ func openConfiguredDatabase() (*config.Config, *sql.DB, io.Closer, func(), error
 	return cfg, db, rdb, cleanup, nil
 }
 
+func runVersion(w io.Writer) error {
+	_, err := fmt.Fprintln(w, version.Full())
+	return err
+}
+
 func printUsage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "Usage: hub [serve|migrate|create-admin|healthcheck|help]")
+	_, _ = fmt.Fprintln(w, "Usage: hub [serve|migrate|create-admin|healthcheck|version|help]")
 }
 
 func isKnownCommand(arg string) bool {
 	switch strings.TrimSpace(arg) {
-	case "serve", "migrate", "create-admin", "healthcheck", "backup", "help", "-h", "--help":
+	case "serve", "migrate", "create-admin", "healthcheck", "version", "backup", "help", "-h", "--help":
 		return true
 	default:
 		return false

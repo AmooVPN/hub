@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -69,6 +70,16 @@ func TestExecuteHealthcheck(t *testing.T) {
 			t.Fatalf("execute: %v", err)
 		}
 	})
+}
+
+func TestExecuteVersion(t *testing.T) {
+	var buf strings.Builder
+	if err := runVersion(&buf); err != nil {
+		t.Fatalf("runVersion: %v", err)
+	}
+	if got := strings.TrimSpace(buf.String()); got == "" {
+		t.Fatal("expected version output")
+	}
 }
 
 func withCommandConfig(t *testing.T, fn func(*config.Config)) {

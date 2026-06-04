@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/AmooVPM/hub/internal/database"
+	"github.com/AmooVPM/hub/internal/version"
 )
 
 type systemHealthSnapshot struct {
@@ -28,7 +29,7 @@ func (r *Runner) getHealth(c *fiber.Ctx) error {
 }
 
 func (r *Runner) getHealthLive(c *fiber.Ctx) error {
-	return c.JSON(systemHealthSnapshot{Status: "ok", App: r.cfg.AppName, Version: "0.1.0", Time: time.Now().UTC()})
+	return c.JSON(systemHealthSnapshot{Status: "ok", App: r.cfg.AppName, Version: version.Full(), Time: time.Now().UTC()})
 }
 
 func (r *Runner) getHealthReady(c *fiber.Ctx) error {
@@ -42,7 +43,7 @@ func (r *Runner) getHealthReady(c *fiber.Ctx) error {
 }
 
 func (r *Runner) collectSystemHealth(ctx context.Context) systemHealthSnapshot {
-	health := systemHealthSnapshot{Status: "ok", App: r.cfg.AppName, SQLite: "ok", Redis: "ok", Migrations: "ok", Version: "0.1.0", Time: time.Now().UTC()}
+	health := systemHealthSnapshot{Status: "ok", App: r.cfg.AppName, SQLite: "ok", Redis: "ok", Migrations: "ok", Version: version.Full(), Time: time.Now().UTC()}
 	if err := pingSQLite(ctx, r.db); err != nil {
 		health.SQLite = err.Error()
 		health.Status = "degraded"
