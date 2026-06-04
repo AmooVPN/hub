@@ -88,7 +88,19 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runCompose("up", "-d", "--build", "--remove-orphans")
 	case "status":
 		if len(rest) != 0 {
-			return fmt.Errorf("status does not take arguments")
+			switch rest[0] {
+			case "logs":
+				fmt.Fprintln(stdout, "use: ahub logs")
+				return nil
+			case "backup":
+				fmt.Fprintln(stdout, "use: ahub backup")
+				return nil
+			case "shell":
+				fmt.Fprintln(stdout, "use: ahub shell")
+				return nil
+			default:
+				return fmt.Errorf("status does not take arguments")
+			}
 		}
 		return runCompose("ps")
 	case "logs":
