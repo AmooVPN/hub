@@ -82,7 +82,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := runCompose("pull"); err != nil {
 			return err
 		}
-		if err := runCompose("run", "--rm", "--no-deps", "--build", serviceName, "migrate"); err != nil {
+		if err := runCompose("run", "--rm", "--no-deps", "--build", serviceName, "/app/hub", "migrate"); err != nil {
 			return err
 		}
 		return runCompose("up", "-d", "--build", "--remove-orphans")
