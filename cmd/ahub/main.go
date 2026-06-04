@@ -226,20 +226,73 @@ func runUninstall(stdout, stderr io.Writer) error {
 	if err := runCompose("down", "-v", "--remove-orphans"); err != nil {
 		return err
 	}
-	installDir := os.Getenv("AHUB_DIR")
-	if installDir == "" {
-		installDir = "/opt/ahub"
+	if ids, err := composeImageIDs(serviceName); err == nil {
+		for _, id := range ids {
+			if id == "" {
+				continue
+			}
+			_ = runDocker("image", "rm", "-f", id)
+		}
 	}
-	binDir := os.Getenv("AHUB_BIN_DIR")
-	if binDir == "" {
-		binDir = filepath.Join(os.Getenv("HOME"), ".local", "bin")
-	}
-	if err := os.RemoveAll(installDir); err != nil {
+	_ = runDocker("volume", "rm", "-f", "hub-data", "hub-backups")
+	if err := os.RemoveAll(defaultInstallDir()); err != nil {
 		return err
 	}
-	_ = os.Remove(filepath.Join(binDir, "ahub"))
+	_ = os.Remove(filepath.Join(defaultBinDir(), "ahub"))
 	fmt.Fprintln(stdout, "uninstalled ahub")
 	return nil
+}
+
+func composeImageIDs(service string) ([]string, error) {
+	cmd := exec.Command("docker", "compose", "images", "-q", service)
+	cmd.Dir = "."
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	ids := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			ids = append(ids, line)
+		}
+	}
+	return ids, nil
+}
+
+func runDocker(args ...string) error {
+	cmd := exec.Command("docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Dir = "."
+	return cmd.Run()
+}
+
+func defaultInstallDir() string {
+	if base := os.Getenv("AHUB_DIR"); base != "" {
+		return base
+	}
+	if base := os.Getenv("XDG_DATA_HOME"); base != "" {
+		return filepath.Join(base, "ahub")
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = "/root"
+	}
+	return filepath.Join(home, ".local", "share", "ahub")
+}
+
+func defaultBinDir() string {
+	if base := os.Getenv("AHUB_BIN_DIR"); base != "" {
+		return base
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = "/root"
+	}
+	return filepath.Join(home, ".local", "bin")
 }
 
 func runCompose(args ...string) error {

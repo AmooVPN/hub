@@ -49,10 +49,51 @@ install_git() {
 	esac
 }
 
-if ! command -v docker >/dev/null 2>&1; then
-	echo "docker is required" >&2
-	exit 1
-fi
+install_go() {
+	if [ -r /etc/os-release ]; then
+		. /etc/os-release
+	fi
+	case "${ID:-}" in
+		ubuntu|debian|linuxmint|pop|elementary)
+			run_as_root apt-get update
+			run_as_root apt-get install -y golang-go
+			;;
+		fedora|rhel|centos|rocky|almalinux)
+			run_as_root dnf install -y golang
+			;;
+		arch|manjaro)
+			run_as_root pacman -Sy --noconfirm go
+			;;
+		alpine)
+			run_as_root apk add --no-cache go
+			;;
+		sles|suse|opensuse*|opensuse)
+			run_as_root zypper --non-interactive install go
+			;;
+		*)
+			echo "go is required and automatic installation is not supported on this distro" >&2
+			exit 1
+			;;
+	esac
+}
+
+build_ahub() {
+	if command -v docker >/dev/null 2>&1; then
+		docker run --rm \
+			-u "$(id -u):$(id -g)" \
+			-v "$INSTALL_DIR:/src" \
+			-v "$BIN_DIR:/out" \
+			-w /src \
+			golang:1.22 \
+			go build -buildvcs=false -o /out/ahub.tmp ./cmd/ahub
+	else
+		if ! command -v go >/dev/null 2>&1; then
+			install_go
+		fi
+		( cd "$INSTALL_DIR" && go build -buildvcs=false -o "$BIN_DIR/ahub.tmp" ./cmd/ahub )
+	fi
+	mv -f "$BIN_DIR/ahub.tmp" "$BIN_DIR/ahub"
+}
 
 if ! command -v git >/dev/null 2>&1; then
 	install_git
@@ -72,13 +113,7 @@ fi
 BIN_DIR=${AHUB_BIN_DIR:-$HOME/.local/bin}
 mkdir -p "$BIN_DIR"
 
-docker run --rm \
-	-v "$INSTALL_DIR:/src" \
-	-w /src \
-	golang:1.22 \
-	go build -o "$BIN_DIR/ahub" ./cmd/ahub
-
-chmod +x "$BIN_DIR/ahub"
+build_ahub
 
 if [ ! -f "$INSTALL_DIR/.env" ]; then
 	"$BIN_DIR/ahub" create env

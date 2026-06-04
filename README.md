@@ -29,6 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/AmooVPN/hub/master/install.sh | sh
 ```
 
 The installer checks for `git` first and installs it on supported Linux distros if it is missing.
+It uses Docker to build `ahub` when available, otherwise it installs Go on supported Linux distros and builds locally.
 `sh -n install.sh` only checks syntax; it does not run the installer.
 By default it installs into `$XDG_DATA_HOME/ahub` or `~/.local/share/ahub`.
 2. Create env and docker files:
@@ -96,7 +97,7 @@ The compose file starts `hub` and `redis` with persistent volumes for `./data` a
 - `ahub uninstall`
 
 ## Uninstall
-- Run `ahub uninstall` or `./uninstall.sh` to stop containers, remove volumes, and wipe the install directory.
+- Run `ahub uninstall` or `./uninstall.sh` to stop containers, remove the `hub` image, remove the `hub-data` and `hub-backups` volumes, and wipe the install directory.
 
 ## Panel Workflow
 ### Add a Panel
