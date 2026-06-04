@@ -4570,6 +4570,8 @@ docs/development.md
 docs/roadmap.md
 ```
 
+* [x] Documentation files added.
+
 ---
 
 # 144. README.md Requirements
@@ -4596,6 +4598,8 @@ Security notes
 Roadmap
 License
 ```
+
+* [x] README requirements covered.
 
 ---
 
@@ -4630,6 +4634,8 @@ JWT usage
 Rate limits
 ```
 
+* [x] Client API documentation added.
+
 ---
 
 # 146. Backup Documentation
@@ -4652,6 +4658,8 @@ Restore warnings
 CLI restore
 Docker volume notes
 ```
+
+* [x] Backup documentation added.
 
 ---
 
@@ -4676,6 +4684,8 @@ Adding services
 Adding templates
 Mocking 3x-ui
 ```
+
+* [x] Development documentation added.
 
 ---
 
