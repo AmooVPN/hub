@@ -85,7 +85,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := runCompose("run", "--rm", "--no-deps", "--build", serviceName, "/app/hub", "migrate"); err != nil {
 			return err
 		}
-		return runCompose("up", "-d", "--build", "--remove-orphans")
+		if err := runCompose("up", "-d", "--build", "--remove-orphans"); err != nil {
+			return err
+		}
+		return rebuildAhubBinary()
 	case "status":
 		if len(rest) != 0 {
 			switch rest[0] {
@@ -160,7 +163,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "stop")+"      Stop containers")
 	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "restart")+"   Restart containers")
 	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "rebuild")+"   Rebuild and start")
-	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "update")+"     Pull, migrate, and restart")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "update")+"     Pull, migrate, restart, and rebuild ahub")
 	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "status")+"     Show container status")
 	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "logs")+"       Follow live logs")
 	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "shell")+"      Open a shell in the app container")
@@ -306,6 +309,56 @@ func buildLogsComposeArgs(args []string) ([]string, error) {
 	}
 	composeArgs = append(composeArgs, serviceName)
 	return composeArgs, nil
+}
+
+func rebuildAhubBinary() error {
+	installDir := defaultInstallDir()
+	binDir := defaultBinDir()
+	if _, err := os.Stat(filepath.Join(installDir, ".git")); err != nil {
+		return nil
+	}
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return err
+	}
+	tmpBin := filepath.Join(binDir, "ahub.update.tmp")
+	if err := buildAhubBinary(installDir, tmpBin); err != nil {
+		return err
+	}
+	return os.Rename(tmpBin, filepath.Join(binDir, "ahub"))
+}
+
+func buildAhubBinary(installDir, outputPath string) error {
+	if _, err := os.Stat(installDir); err != nil {
+		return err
+	}
+	cacheDir := filepath.Join(os.TempDir(), "ahub-go-build")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return err
+	}
+	if _, err := exec.LookPath("docker"); err == nil {
+		cmd := exec.Command("docker", "run", "--rm",
+			"-u", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
+			"-v", installDir+":/src",
+			"-v", filepath.Dir(outputPath)+":/out",
+			"-v", cacheDir+":/cache",
+			"-e", "GOCACHE=/cache",
+			"-w", "/src",
+			"golang:1.22",
+			"go", "build", "-buildvcs=false", "-o", "/out/"+filepath.Base(outputPath), "./cmd/ahub")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		return cmd.Run()
+	}
+	if _, err := exec.LookPath("go"); err != nil {
+		return errors.New("go or docker is required to rebuild ahub")
+	}
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", outputPath, "./cmd/ahub")
+	cmd.Dir = installDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
 }
 
 func runUninstall(stdout, stderr io.Writer) error {
