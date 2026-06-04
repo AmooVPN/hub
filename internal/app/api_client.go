@@ -103,22 +103,26 @@ func (r *Runner) postClientAPILogin(c *fiber.Ctx) error {
 	if req.Username == "" || req.Password == "" {
 		return apiError(c, fiber.StatusBadRequest, "invalid_request", "Username and password are required")
 	}
-	key := "api:client:" + c.IP() + ":" + req.Username
+	ip := requestClientIP(c, r.cfg.TrustProxy)
+	key := "api:client:" + ip + ":" + req.Username
 	if r.loginLocks.blocked(key) {
+		_ = r.logAudit(c.UserContext(), "client", nil, "api_login_rate_limited", "client", nil, map[string]any{"username": req.Username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 		return apiError(c, fiber.StatusTooManyRequests, "rate_limited", "Too many attempts. Try again later.")
 	}
 
 	client, err := r.clients.FindByUsername(c.UserContext(), req.Username)
 	if err != nil || client == nil || client.Status == "disabled" || security.ComparePassword(req.Password, client.PasswordHash) != nil {
 		r.loginLocks.fail(key)
+		_ = r.logAudit(c.UserContext(), "client", nil, "api_login_failed", "client", nil, map[string]any{"username": req.Username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 		return apiError(c, fiber.StatusUnauthorized, "invalid_credentials", "Invalid username or password")
 	}
 	r.loginLocks.success(key)
 
-	accessToken, refreshToken, err := r.issueClientTokens(c.UserContext(), client, c.Get("User-Agent"), c.IP())
+	accessToken, refreshToken, err := r.issueClientTokens(c.UserContext(), client, c.Get("User-Agent"), ip)
 	if err != nil {
 		return err
 	}
+	_ = r.logAudit(c.UserContext(), "client", &client.ID, "api_login_success", "client", &client.ID, map[string]any{"username": client.Username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 	return c.Status(fiber.StatusOK).JSON(clientAPIAuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -150,10 +154,11 @@ func (r *Runner) postClientAPIRefresh(c *fiber.Ctx) error {
 	if err := r.refreshes.RevokeByHash(ctx, refreshHash); err != nil {
 		return err
 	}
-	accessToken, refreshToken, err := r.issueClientTokens(ctx, client, c.Get("User-Agent"), c.IP())
+	accessToken, refreshToken, err := r.issueClientTokens(ctx, client, c.Get("User-Agent"), requestClientIP(c, r.cfg.TrustProxy))
 	if err != nil {
 		return err
 	}
+	_ = r.logAudit(ctx, "client", &client.ID, "api_refresh", "refresh_token", nil, map[string]any{"ip": requestClientIP(c, r.cfg.TrustProxy), "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 	return c.Status(fiber.StatusOK).JSON(clientAPIAuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -176,7 +181,7 @@ func (r *Runner) postClientAPILogout(c *fiber.Ctx) error {
 	if err := r.refreshes.RevokeByHash(ctx, security.HashRefreshToken(req.RefreshToken)); err != nil {
 		return err
 	}
-	_ = r.logAudit(ctx, "client", nil, "api_logout", "refresh_token", nil, map[string]any{"ip": c.IP()})
+	_ = r.logAudit(ctx, "client", nil, "api_logout", "refresh_token", nil, map[string]any{"ip": requestClientIP(c, r.cfg.TrustProxy), "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"success": true})
 }
 
@@ -189,6 +194,7 @@ func (r *Runner) getClientAPIMe(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	_ = r.logAudit(c.UserContext(), "client", &client.ID, "api_me", "client", &client.ID, nil)
 	return c.Status(fiber.StatusOK).JSON(clientAPIMeResponse{
 		Client:             client.ToDTO(),
 		Status:             summary.StatusText,
@@ -220,6 +226,7 @@ func (r *Runner) getClientAPISubscription(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	_ = r.logAudit(c.UserContext(), "client", &client.ID, "api_subscription", "client", &client.ID, nil)
 	return c.Status(fiber.StatusOK).JSON(clientAPISubscriptionResponse{
 		SubscriptionURL: summary.SubscriptionURL,
 		Formats: map[string]string{
@@ -252,6 +259,7 @@ func (r *Runner) getClientAPIConfigs(c *fiber.Ctx) error {
 			Config:        cfg.CopyValue,
 		})
 	}
+	_ = r.logAudit(c.UserContext(), "client", &client.ID, "api_configs", "client", &client.ID, map[string]any{"configs": len(items)})
 	return c.Status(fiber.StatusOK).JSON(clientAPIConfigsResponse{Configs: items})
 }
 
@@ -264,6 +272,7 @@ func (r *Runner) getClientAPIUsage(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	_ = r.logAudit(c.UserContext(), "client", &client.ID, "api_usage", "client", &client.ID, map[string]any{"total_bytes": summary.TotalBytes})
 	return c.Status(fiber.StatusOK).JSON(clientAPIUsageResponse{
 		UploadBytes:           summary.UploadBytes,
 		DownloadBytes:         summary.DownloadBytes,
@@ -283,6 +292,7 @@ func (r *Runner) getClientAPIStatus(c *fiber.Ctx) error {
 		return err
 	}
 	remainingSeconds, remainingDays := int64(0), int64(0)
+	_ = r.logAudit(c.UserContext(), "client", &client.ID, "api_status", "client", &client.ID, map[string]any{"status": summary.StatusText})
 	isExpired := summary.StatusText == "expired"
 	if client.ExpiryTime != nil {
 		remaining := time.Until(*client.ExpiryTime)

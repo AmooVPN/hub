@@ -36,6 +36,8 @@ type Config struct {
 	SMTPUsername            string
 	SMTPPassword            string
 	SMTPFrom                string
+	TrustProxy              bool
+	TrustedProxies          []string
 	MaxUploadSizeMB         int
 	InitialAdminUsername    string
 	InitialAdminPassword    string
@@ -65,6 +67,7 @@ func Load() (*Config, error) {
 		SMTPUsername:            os.Getenv("SMTP_USERNAME"),
 		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:                os.Getenv("SMTP_FROM"),
+		TrustedProxies:          splitEnvList(os.Getenv("TRUSTED_PROXIES")),
 		InitialAdminUsername:    getEnv("INITIAL_ADMIN_USERNAME", "admin"),
 		InitialAdminPassword:    getEnv("INITIAL_ADMIN_PASSWORD", "change-me-now"),
 		InitialAdminEmail:       os.Getenv("INITIAL_ADMIN_EMAIL"),
@@ -97,6 +100,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if c.MetricsEnabled, err = parseBoolEnv("METRICS_ENABLED", false); err != nil {
+		return nil, err
+	}
+	if c.TrustProxy, err = parseBoolEnv("TRUST_PROXY", false); err != nil {
 		return nil, err
 	}
 	if c.SMTPPort, err = parseIntEnv("SMTP_PORT", 25); err != nil {
@@ -165,4 +171,16 @@ func isValidBackupSchedule(value string) bool {
 	default:
 		return false
 	}
+}
+
+func splitEnvList(value string) []string {
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			items = append(items, part)
+		}
+	}
+	return items
 }

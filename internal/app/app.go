@@ -44,6 +44,7 @@ type Runner struct {
 	notifications  *services.NotificationService
 	telegram       *services.TelegramNotifier
 	email          *services.EmailNotifier
+	events         services.EventBus
 	logger         *slog.Logger
 	loginLocks     *attemptTracker
 	server         *fiber.App
@@ -122,6 +123,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		notifications:  services.NewNotificationService(notifications, telegram, email),
 		telegram:       telegram,
 		email:          email,
+		events:         services.NewEventBus(),
 		logger:         logger,
 		loginLocks:     newAttemptTracker(5, 15*time.Minute),
 	}
@@ -150,6 +152,7 @@ func (r *Runner) buildServer() *fiber.App {
 	})
 
 	app.Use(recover.New())
+	app.Use(r.requestIDMiddleware())
 	if r.cfg.MetricsEnabled && r.metrics != nil {
 		app.Use(r.metricsMiddleware())
 	}
@@ -165,12 +168,16 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Use("/admin", r.requireAdminSession)
 	app.Get("/admin", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboard)
 	app.Get("/admin/dashboard/widgets", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboardWidgets)
+	app.Get("/admin/dashboard/panel-status", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboardPanelStatus)
+	app.Get("/admin/dashboard/sync-jobs", security.RequirePermission(security.PermissionViewDashboard), r.getAdminDashboardSyncJobs)
 	app.Post("/admin/sync/traffic", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncTraffic)
 	app.Get("/admin/sync-jobs", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobs)
 	app.Get("/admin/sync-jobs/:id", security.RequirePermission(security.PermissionViewDashboard), r.getAdminSyncJobDetail)
 	app.Post("/admin/sync-jobs/:id/retry", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobRetry)
 	app.Post("/admin/sync-jobs/:id/cancel", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobCancel)
 	app.Get("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.getAdminSettings)
+	app.Get("/admin/audit-logs", security.RequirePermission(security.PermissionViewAuditLogs), r.getAdminAuditLogs)
+	app.Get("/admin/audit-logs/:id", security.RequirePermission(security.PermissionViewAuditLogs), r.getAdminAuditLogDetail)
 	app.Get("/admin/backups", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackups)
 	app.Get("/admin/backups/export", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackupsExport)
 	app.Post("/admin/backups/import", security.RequirePermission(security.PermissionViewDashboard), r.postAdminBackupsImport)
@@ -252,6 +259,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Get("/sub/:token/base64", r.getPublicSubscriptionBase64)
 	app.Get("/sub/:token/clash", r.getPublicSubscriptionClash)
 	app.Get("/sub/:token/singbox", r.getPublicSubscriptionSingbox)
+	app.Use("/api/v1/client", r.clientAPILogMiddleware())
 	app.Post("/api/v1/client/auth/login", r.postClientAPILogin)
 	app.Post("/api/v1/client/auth/refresh", r.postClientAPIRefresh)
 	app.Post("/api/v1/client/auth/logout", r.postClientAPILogout)
@@ -302,16 +310,17 @@ func (r *Runner) getAdminLogin(c *fiber.Ctx) error {
 func (r *Runner) postAdminLogin(c *fiber.Ctx) error {
 	username := strings.TrimSpace(c.FormValue("username"))
 	password := c.FormValue("password")
-	key := c.IP() + ":" + username
+	ip := requestClientIP(c, r.cfg.TrustProxy)
+	key := ip + ":" + username
 	if r.loginLocks.blocked(key) {
-		_ = r.logAudit(c.UserContext(), "admin", nil, "login_rate_limited", "admin", nil, map[string]any{"username": username})
+		_ = r.logAudit(c.UserContext(), "admin", nil, "login_rate_limited", "admin", nil, map[string]any{"username": username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 		return c.Status(fiber.StatusTooManyRequests).Type("html").SendString(renderLoginPage("Too many attempts. Try again later.", r.cfg.AppName))
 	}
 
 	admin, err := r.admins.FindByUsername(c.UserContext(), username)
 	if err != nil || admin == nil || !admin.Active || security.ComparePassword(password, admin.PasswordHash) != nil {
 		r.loginLocks.fail(key)
-		_ = r.logAudit(c.UserContext(), "admin", nil, "login_failed", "admin", nil, map[string]any{"username": username})
+		_ = r.logAudit(c.UserContext(), "admin", nil, "login_failed", "admin", nil, map[string]any{"username": username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 		return c.Status(fiber.StatusUnauthorized).Type("html").SendString(renderLoginPage("Invalid credentials.", r.cfg.AppName))
 	}
 	r.loginLocks.success(key)
@@ -335,7 +344,7 @@ func (r *Runner) postAdminLogin(c *fiber.Ctx) error {
 		SameSite: "Lax",
 		Expires:  expires,
 	})
-	_ = r.logAudit(c.UserContext(), "admin", &admin.ID, "login_success", "admin", &admin.ID, map[string]any{"username": admin.Username})
+	_ = r.logAudit(c.UserContext(), "admin", &admin.ID, "login_success", "admin", &admin.ID, map[string]any{"username": admin.Username, "ip": ip, "proto": requestForwardedProto(c, r.cfg.TrustProxy), "host": requestForwardedHost(c, r.cfg.TrustProxy)})
 	return c.Redirect("/admin", fiber.StatusFound)
 }
 
@@ -967,7 +976,14 @@ func (r *Runner) logAudit(ctx context.Context, actorType string, actorID *int64,
 	if len(metadata) != 0 {
 		meta = fmt.Sprintf("%v", metadata)
 	}
-	return r.audit.Create(ctx, &models.AuditLog{ActorType: actorType, ActorID: actorID, Action: action, TargetType: targetType, TargetID: targetID, MetadataJSON: meta, CreatedAt: time.Now().UTC()})
+	audit := &models.AuditLog{ActorType: actorType, ActorID: actorID, Action: action, TargetType: targetType, TargetID: targetID, MetadataJSON: meta, CreatedAt: time.Now().UTC()}
+	if err := r.audit.Create(ctx, audit); err != nil {
+		return err
+	}
+	if r.events != nil {
+		r.events.Publish(ctx, services.Event{Type: action, ActorType: actorType, ActorID: actorID, TargetType: targetType, TargetID: targetID, Payload: metadata, CreatedAt: audit.CreatedAt})
+	}
+	return nil
 }
 
 func adminSessionKey(token string) string {

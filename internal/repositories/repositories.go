@@ -54,6 +54,7 @@ type InboundRepository interface {
 
 type AuditRepository interface {
 	Create(context.Context, *models.AuditLog) error
+	FindByID(context.Context, int64) (*models.AuditLog, error)
 	ListRecent(context.Context, int) ([]models.AuditLog, error)
 	ListByTarget(context.Context, string, int64, int) ([]models.AuditLog, error)
 }
@@ -121,7 +122,9 @@ func NewWebhookRepository(db *sql.DB) WebhookRepository { return &sqliteWebhookR
 func NewWebhookDeliveryRepository(db *sql.DB) WebhookDeliveryRepository {
 	return &sqliteWebhookDeliveryRepository{db: db}
 }
-func NewNotificationRepository(db *sql.DB) NotificationRepository { return &sqliteNotificationRepository{db: db} }
+func NewNotificationRepository(db *sql.DB) NotificationRepository {
+	return &sqliteNotificationRepository{db: db}
+}
 
 func (r *sqliteAdminRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
@@ -405,6 +408,11 @@ func (r *sqliteAuditRepository) Create(ctx context.Context, audit *models.AuditL
 	return err
 }
 
+func (r *sqliteAuditRepository) FindByID(ctx context.Context, id int64) (*models.AuditLog, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, actor_type, actor_id, action, target_type, target_id, metadata_json, created_at FROM audit_logs WHERE id = ?`, id)
+	return scanAudit(row)
+}
+
 func (r *sqliteAuditRepository) ListRecent(ctx context.Context, limit int) ([]models.AuditLog, error) {
 	if limit <= 0 {
 		limit = 50
@@ -416,23 +424,11 @@ func (r *sqliteAuditRepository) ListRecent(ctx context.Context, limit int) ([]mo
 	defer rows.Close()
 	var items []models.AuditLog
 	for rows.Next() {
-		var audit models.AuditLog
-		var actorID, targetID sql.NullInt64
-		var targetType, metadata sql.NullString
-		if err := rows.Scan(&audit.ID, &audit.ActorType, &actorID, &audit.Action, &targetType, &targetID, &metadata, &audit.CreatedAt); err != nil {
+		audit, err := scanAudit(rows)
+		if err != nil {
 			return nil, err
 		}
-		if actorID.Valid {
-			v := actorID.Int64
-			audit.ActorID = &v
-		}
-		if targetID.Valid {
-			v := targetID.Int64
-			audit.TargetID = &v
-		}
-		audit.TargetType = targetType.String
-		audit.MetadataJSON = metadata.String
-		items = append(items, audit)
+		items = append(items, *audit)
 	}
 	return items, rows.Err()
 }
@@ -448,25 +444,33 @@ func (r *sqliteAuditRepository) ListByTarget(ctx context.Context, targetType str
 	defer rows.Close()
 	var items []models.AuditLog
 	for rows.Next() {
-		var audit models.AuditLog
-		var actorID, targetIDVal sql.NullInt64
-		var targetTypeVal, metadata sql.NullString
-		if err := rows.Scan(&audit.ID, &audit.ActorType, &actorID, &audit.Action, &targetTypeVal, &targetIDVal, &metadata, &audit.CreatedAt); err != nil {
+		audit, err := scanAudit(rows)
+		if err != nil {
 			return nil, err
 		}
-		if actorID.Valid {
-			v := actorID.Int64
-			audit.ActorID = &v
-		}
-		if targetIDVal.Valid {
-			v := targetIDVal.Int64
-			audit.TargetID = &v
-		}
-		audit.TargetType = targetTypeVal.String
-		audit.MetadataJSON = metadata.String
-		items = append(items, audit)
+		items = append(items, *audit)
 	}
 	return items, rows.Err()
+}
+
+func scanAudit(scanner interface{ Scan(...any) error }) (*models.AuditLog, error) {
+	var audit models.AuditLog
+	var actorID, targetID sql.NullInt64
+	var targetType, metadata sql.NullString
+	if err := scanner.Scan(&audit.ID, &audit.ActorType, &actorID, &audit.Action, &targetType, &targetID, &metadata, &audit.CreatedAt); err != nil {
+		return nil, err
+	}
+	if actorID.Valid {
+		v := actorID.Int64
+		audit.ActorID = &v
+	}
+	if targetID.Valid {
+		v := targetID.Int64
+		audit.TargetID = &v
+	}
+	audit.TargetType = targetType.String
+	audit.MetadataJSON = metadata.String
+	return &audit, nil
 }
 
 func (r *sqliteSyncJobRepository) Create(ctx context.Context, job *models.SyncJob) error {

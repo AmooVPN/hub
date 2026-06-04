@@ -3666,11 +3666,11 @@ date_to
 
 Tasks:
 
-* [ ] Add audit logs list page.
-* [ ] Add filters.
-* [ ] Add metadata JSON viewer.
+* [x] Add audit logs list page.
+* [x] Add filters.
+* [x] Add metadata JSON viewer.
 * [ ] Add export audit logs later.
-* [ ] Add permission check.
+* [x] Add permission check.
 
 Audit log examples:
 
@@ -3726,9 +3726,9 @@ Consumers:
 
 Tasks:
 
-* [ ] Add event dispatcher.
-* [ ] Emit events from services.
-* [ ] Subscribe audit logger.
+* [x] Add event dispatcher.
+* [x] Emit events from services.
+* [x] Subscribe audit logger.
 * [ ] Subscribe notification service later.
 * [ ] Subscribe webhook service later.
 
@@ -3755,8 +3755,8 @@ Server-Sent Events
 
 Tasks:
 
-* [ ] Add HTMX polling for panel status.
-* [ ] Add HTMX polling for sync jobs.
+* [x] Add HTMX polling for panel status.
+* [x] Add HTMX polling for sync jobs.
 * [ ] Add SSE roadmap.
 
 ---
@@ -3774,12 +3774,12 @@ hub may run behind:
 
 Tasks:
 
-* [ ] Respect `X-Forwarded-Proto`.
-* [ ] Respect `X-Forwarded-Host`.
-* [ ] Respect `X-Real-IP`.
-* [ ] Add trusted proxy config.
-* [ ] Generate subscription URLs using `APP_BASE_URL`.
-* [ ] Never blindly trust forwarded headers unless configured.
+* [x] Respect `X-Forwarded-Proto`.
+* [x] Respect `X-Forwarded-Host`.
+* [x] Respect `X-Real-IP`.
+* [x] Add trusted proxy config.
+* [x] Generate subscription URLs using `APP_BASE_URL`.
+* [x] Never blindly trust forwarded headers unless configured.
 
 Env:
 
@@ -3816,9 +3816,9 @@ Do not log:
 
 Tasks:
 
-* [ ] Add safe API logging middleware.
-* [ ] Add request ID.
-* [ ] Add correlation ID.
+* [x] Add safe API logging middleware.
+* [x] Add request ID.
+* [x] Add correlation ID.
 
 ---
 
