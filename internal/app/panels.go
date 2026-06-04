@@ -17,6 +17,10 @@ import (
 	"github.com/AmooVPM/hub/internal/xui"
 )
 
+type panelListFilters struct {
+	Status string
+}
+
 type panelForm struct {
 	Name     string
 	BaseURL  string
@@ -31,11 +35,18 @@ func (r *Runner) getAdminPanels(c *fiber.Ctx) error {
 	if !ok {
 		return c.Redirect("/admin/login", fiber.StatusFound)
 	}
+	filters := panelListFilters{Status: strings.ToLower(strings.TrimSpace(c.Query("status")))}
 	panels, err := r.panels.List(c.UserContext())
 	if err != nil {
 		return err
 	}
-	return c.Type("html").SendString(renderPanelListPage(panels, r.cfg.AppName, admin.Role))
+	filtered := make([]models.Panel, 0, len(panels))
+	for _, panel := range panels {
+		if panelListMatchesFilters(&panel, filters) {
+			filtered = append(filtered, panel)
+		}
+	}
+	return c.Type("html").SendString(renderPanelListPage(filtered, filters, r.cfg.AppName, admin.Role))
 }
 
 func (r *Runner) getAdminPanelNew(c *fiber.Ctx) error {
@@ -395,7 +406,17 @@ func panelSessionRedisKey(panelID int64) string {
 	return fmt.Sprintf("hub:panel:%d:cookies", panelID)
 }
 
-func renderPanelListPage(panels []models.Panel, appName string, adminRole string) string {
+func panelListMatchesFilters(panel *models.Panel, filters panelListFilters) bool {
+	if panel == nil {
+		return false
+	}
+	if filters.Status != "" && panel.Status != filters.Status {
+		return false
+	}
+	return true
+}
+
+func renderPanelListPage(panels []models.Panel, filters panelListFilters, appName string, adminRole string) string {
 	var rows strings.Builder
 	for _, panel := range panels {
 		rows.WriteString(`<tr><td>` + html.EscapeString(panel.Name) + `</td><td>` + html.EscapeString(panel.BaseURL) + `</td><td>` + html.EscapeString(panel.Username) + `</td><td>` + panelStatusBadge(panel.Status) + `</td><td>` + html.EscapeString(defaultString(panel.Version, "-")) + `</td><td>` + html.EscapeString(formatTimeOrDash(panel.LastSyncAt)) + `</td><td>` + html.EscapeString(formatTimeOrDash(panel.LastCheckedAt)) + `</td><td class="text-nowrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `">View</a> <a class="btn btn-outline-secondary btn-sm" href="/admin/panels/` + strconv.FormatInt(panel.ID, 10) + `/edit">Edit</a></td></tr>`)
@@ -403,7 +424,7 @@ func renderPanelListPage(panels []models.Panel, appName string, adminRole string
 	if rows.Len() == 0 {
 		rows.WriteString(`<tr><td colspan="8" class="text-body-secondary">No panels yet.</td></tr>`)
 	}
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Panels</h1><p class="text-body-secondary mb-0">Remote 3x-ui panel connections</p></div><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="/admin/panels/new">New panel</a><a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Name</th><th>Base URL</th><th>User</th><th>Status</th><th>Version</th><th>Last Sync</th><th>Last Checked</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Panels</h1><p class="text-body-secondary mb-0">Remote 3x-ui panel connections</p></div><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="/admin/panels/new">New panel</a><a class="btn btn-outline-secondary btn-sm" href="/admin">Back</a></div></div><div class="card shadow-sm mb-3"><div class="card-body"><form method="get" action="/admin/panels" class="row g-2 align-items-end"><div class="col-12 col-md-6"><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status"><option value="">All</option><option value="unknown"` + selectedOption(filters.Status, "unknown") + `>Unknown</option><option value="online"` + selectedOption(filters.Status, "online") + `>Online</option><option value="offline"` + selectedOption(filters.Status, "offline") + `>Offline</option><option value="auth_error"` + selectedOption(filters.Status, "auth_error") + `>Auth error</option><option value="degraded"` + selectedOption(filters.Status, "degraded") + `>Degraded</option><option value="syncing"` + selectedOption(filters.Status, "syncing") + `>Syncing</option><option value="error"` + selectedOption(filters.Status, "error") + `>Error</option></select></div><div class="col-12 col-md-6 d-flex gap-2"><button class="btn btn-primary" type="submit">Filter</button><a class="btn btn-outline-secondary" href="/admin/panels">Reset</a></div></form></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Name</th><th>Base URL</th><th>User</th><th>Status</th><th>Version</th><th>Last Sync</th><th>Last Checked</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
 	return renderAdminShell(appName, adminRole, "panels", body)
 }
 

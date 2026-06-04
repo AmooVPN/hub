@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -222,6 +223,9 @@ func RunMigrations(db *sql.DB) error {
 	if len(migrations) == 0 {
 		return nil
 	}
+	if err := validateMigrationRegistry(migrations); err != nil {
+		return err
+	}
 
 	sorted := make([]Migration, len(migrations))
 	copy(sorted, migrations)
@@ -273,6 +277,29 @@ func RunMigrations(db *sql.DB) error {
 	return nil
 }
 
+func validateMigrationRegistry(registry []Migration) error {
+	if len(registry) == 0 {
+		return errors.New("no migrations registered")
+	}
+	seen := make(map[int]struct{}, len(registry))
+	for _, migration := range registry {
+		if migration.Version <= 0 {
+			return fmt.Errorf("invalid migration version %d", migration.Version)
+		}
+		if strings.TrimSpace(migration.Name) == "" {
+			return fmt.Errorf("migration %d has empty name", migration.Version)
+		}
+		if len(migration.SQL) == 0 {
+			return fmt.Errorf("migration %d (%s) has no SQL statements", migration.Version, migration.Name)
+		}
+		if _, ok := seen[migration.Version]; ok {
+			return fmt.Errorf("duplicate migration version %d", migration.Version)
+		}
+		seen[migration.Version] = struct{}{}
+	}
+	return nil
+}
+
 func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -297,13 +324,54 @@ func applyMigration(ctx context.Context, db *sql.DB, migration Migration) error 
 func ValidateSchemaVersion(db *sql.DB) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	var version sql.NullInt64
-	err := db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := validateMigrationRegistry(migrations); err != nil {
 		return err
 	}
-	if !version.Valid {
+
+	rows, err := db.QueryContext(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	applied := map[int]struct{}{}
+	for rows.Next() {
+		var version int
+		if err := rows.Scan(&version); err != nil {
+			return err
+		}
+		applied[version] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(applied) == 0 {
 		return errors.New("no schema migrations applied")
 	}
+
+	registered := map[int]struct{}{}
+	for _, migration := range migrations {
+		registered[migration.Version] = struct{}{}
+	}
+	for version := range applied {
+		if _, ok := registered[version]; !ok {
+			return fmt.Errorf("database schema version %d is newer than supported version %d", version, latestMigrationVersion(migrations))
+		}
+	}
+	for version := range registered {
+		if _, ok := applied[version]; !ok {
+			return fmt.Errorf("database schema version %d is missing", version)
+		}
+	}
 	return nil
+}
+
+func latestMigrationVersion(registry []Migration) int {
+	latest := 0
+	for _, migration := range registry {
+		if migration.Version > latest {
+			latest = migration.Version
+		}
+	}
+	return latest
 }

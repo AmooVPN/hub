@@ -29,6 +29,7 @@ type ClientRepository interface {
 	Count(context.Context) (int64, error)
 	Create(context.Context, *models.Client) error
 	FindByUsername(context.Context, string) (*models.Client, error)
+	Delete(context.Context, int64) error
 	Update(context.Context, *models.Client) error
 	UpdateSubscriptionToken(context.Context, int64, string) error
 	UpdateStatus(context.Context, int64, string) error
@@ -257,6 +258,11 @@ func (r *sqliteClientRepository) Create(ctx context.Context, client *models.Clie
 	}
 	client.ID = id
 	return nil
+}
+
+func (r *sqliteClientRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM clients WHERE id = ?`, id)
+	return err
 }
 
 func (r *sqliteClientRepository) FindByUsername(ctx context.Context, username string) (*models.Client, error) {

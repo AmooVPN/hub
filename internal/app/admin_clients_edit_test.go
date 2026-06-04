@@ -23,3 +23,12 @@ func TestClientEditFormFromClient(t *testing.T) {
 		t.Fatalf("unexpected form: %+v", form)
 	}
 }
+
+func TestRenderAdminClientCreatePageShowsPasswordField(t *testing.T) {
+	page := renderAdminClientCreatePage(clientCreateForm{}, "/admin/clients", "hub", "admin", nil)
+	for _, expected := range []string{"Create client", "password", "/admin/clients"} {
+		if !strings.Contains(page, expected) {
+			t.Fatalf("expected %q in page", expected)
+		}
+	}
+}

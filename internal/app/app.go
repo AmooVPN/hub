@@ -219,9 +219,12 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Get("/admin/inbounds/:id", security.RequirePermission(security.PermissionManagePanels), r.getAdminInboundDetail)
 	app.Post("/admin/inbounds/:id/refresh", security.RequirePermission(security.PermissionManagePanels), r.postAdminInboundRefresh)
 	app.Get("/admin/clients", security.RequirePermission(security.PermissionViewClients), r.getAdminClients)
+	app.Get("/admin/clients/new", security.RequirePermission(security.PermissionManageClients), r.getAdminClientNew)
+	app.Post("/admin/clients", security.RequirePermission(security.PermissionManageClients), r.postAdminClientCreate)
 	app.Get("/admin/clients/:id", security.RequirePermission(security.PermissionViewClients), r.getAdminClientDetail)
 	app.Get("/admin/clients/:id/edit", security.RequirePermission(security.PermissionManageClients), r.getAdminClientEdit)
 	app.Post("/admin/clients/:id", security.RequirePermission(security.PermissionManageClients), r.postAdminClientUpdate)
+	app.Post("/admin/clients/:id/delete", security.RequirePermission(security.PermissionManageClients), r.postAdminClientDelete)
 	app.Post("/admin/clients/:id/disable", security.RequirePermission(security.PermissionManageClients), r.postAdminClientDisable)
 	app.Post("/admin/clients/:id/enable", security.RequirePermission(security.PermissionManageClients), r.postAdminClientEnable)
 	app.Post("/admin/clients/:id/reset-password", security.RequirePermission(security.PermissionManageClients), r.postAdminClientResetPassword)
@@ -898,16 +901,12 @@ func (r *Runner) loadClientSummary(ctx context.Context, client *models.Client) (
 	if client == nil {
 		return summary, errors.New("client not found")
 	}
+	now := time.Now().UTC()
 	if client.ExpiryTime != nil {
 		summary.ExpiryText = formatTime(*client.ExpiryTime)
-		if client.ExpiryTime.Before(time.Now().UTC()) {
-			summary.StatusText = "expired"
-		} else {
-			summary.StatusText = "active"
+		if client.ExpiryTime.After(now) {
 			summary.RemainingText = formatDuration(time.Until(*client.ExpiryTime))
 		}
-	} else {
-		summary.StatusText = "active"
 	}
 	row := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(upload_bytes),0), COALESCE(SUM(download_bytes),0), COUNT(*) FROM client_attachments WHERE client_id = ?`, client.ID)
 	if err := row.Scan(&summary.UploadBytes, &summary.DownloadBytes, &summary.ActiveConfigs); err != nil {
@@ -921,6 +920,7 @@ func (r *Runner) loadClientSummary(ctx context.Context, client *models.Client) (
 		}
 		summary.RemainingBytes = remaining
 	}
+	summary.StatusText = services.DetermineClientStatus(client, summary.TotalBytes, now)
 	if summary.StatusText != "expired" && (client.TrafficLimitBytes <= 0 || summary.RemainingBytes > 0) {
 		summary.Configs, _ = r.loadClientConfigs(ctx, client.ID)
 		summary.ActiveConfigs = len(summary.Configs)

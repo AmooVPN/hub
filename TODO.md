@@ -342,9 +342,9 @@ CREATE TABLE schema_migrations (
 
 Tasks:
 
-* [ ] Migration runner
-* [ ] Migration registry
-* [ ] Schema version validation
+* [x] Migration runner
+* [x] Migration registry
+* [x] Schema version validation
 
 ---
 
@@ -1914,15 +1914,15 @@ Responsibilities:
 
 Tasks:
 
-* [ ] Create panel service.
-* [ ] Add create panel.
-* [ ] Add update panel.
-* [ ] Add delete panel.
-* [ ] Add test connection.
-* [ ] Add sync metadata.
-* [ ] Add status update.
-* [ ] Add audit logs.
-* [ ] Add repository integration.
+* [x] Create panel service.
+* [x] Add create panel.
+* [x] Add update panel.
+* [x] Add delete panel.
+* [x] Add test connection.
+* [x] Add sync metadata.
+* [x] Add status update.
+* [x] Add audit logs.
+* [x] Add repository integration.
 
 ---
 
@@ -2000,7 +2000,7 @@ Tasks:
 * [x] Add constants.
 * [x] Add UI badges.
 * [x] Add status update logic.
-* [ ] Add status filters.
+* [x] Add status filters.
 
 ---
 
@@ -2156,18 +2156,18 @@ POST /admin/clients/:id/regenerate-sub-token
 
 Tasks:
 
-* [ ] List clients.
-* [ ] Search clients.
-* [ ] Filter by status.
-* [ ] Filter by expired.
-* [ ] Create client.
-* [ ] Edit client.
-* [ ] Disable client.
-* [ ] Enable client.
-* [ ] Delete client.
-* [ ] Reset client password.
-* [ ] Regenerate subscription token.
-* [ ] Show client detail.
+* [x] List clients.
+* [x] Search clients.
+* [x] Filter by status.
+* [x] Filter by expired.
+* [x] Create client.
+* [x] Edit client.
+* [x] Disable client.
+* [x] Enable client.
+* [x] Delete client.
+* [x] Reset client password.
+* [x] Regenerate subscription token.
+* [x] Show client detail.
 
 Acceptance criteria:
 
@@ -2200,10 +2200,10 @@ Rules:
 
 Tasks:
 
-* [ ] Add status service.
-* [ ] Add computed status.
-* [ ] Add UI badge.
-* [ ] Add API status mapping.
+* [x] Add status service.
+* [x] Add computed status.
+* [x] Add UI badge.
+* [x] Add API status mapping.
 
 ---
 

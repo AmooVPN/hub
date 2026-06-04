@@ -18,12 +18,19 @@ import (
 
 	"github.com/AmooVPM/hub/internal/models"
 	"github.com/AmooVPM/hub/internal/security"
+	"github.com/AmooVPM/hub/internal/services"
 	"github.com/AmooVPM/hub/internal/xui"
 )
 
 type adminClientListRow struct {
 	models.Client
 	AttachmentCount int
+	TotalBytes      int64
+}
+
+type clientListFilters struct {
+	Query  string
+	Status string
 }
 
 type inboundOption struct {
@@ -53,16 +60,72 @@ type clientEditForm struct {
 	ExpiryText       string
 }
 
+type clientCreateForm struct {
+	clientEditForm
+	Password string
+}
+
 func (r *Runner) getAdminClients(c *fiber.Ctx) error {
 	admin, ok := currentAdmin(c)
 	if !ok {
 		return c.Redirect("/admin/login", fiber.StatusFound)
 	}
-	clients, err := r.loadAdminClientList(c.UserContext())
+	filters := clientListFilters{Query: strings.TrimSpace(c.Query("q")), Status: strings.ToLower(strings.TrimSpace(c.Query("status")))}
+	clients, err := r.loadAdminClientList(c.UserContext(), filters)
 	if err != nil {
 		return err
 	}
-	return c.Type("html").SendString(renderAdminClientListPage(clients, r.cfg.AppName, admin.Role))
+	return c.Type("html").SendString(renderAdminClientListPage(clients, filters, r.cfg.AppName, admin.Role))
+}
+
+func (r *Runner) getAdminClientNew(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	return c.Type("html").SendString(renderAdminClientCreatePage(clientCreateForm{}, "/admin/clients", r.cfg.AppName, admin.Role, nil))
+}
+
+func (r *Runner) postAdminClientCreate(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	form := parseClientCreateForm(c)
+	if form.Username == "" {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{"username is required"}))
+	}
+	if form.Password == "" {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{"password is required"}))
+	}
+	if form.Status != "" && form.Status != "active" && form.Status != "disabled" {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{"invalid status"}))
+	}
+	hash, err := security.HashPassword(form.Password)
+	if err != nil {
+		return err
+	}
+	token, err := security.RandomToken(32)
+	if err != nil {
+		return err
+	}
+	limit, err := parseClientLimit(form.TrafficLimitText)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{err.Error()}))
+	}
+	expiry, err := parseClientExpiry(form.ExpiryText)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{err.Error()}))
+	}
+	client := &models.Client{Username: form.Username, DisplayName: form.DisplayName, Email: form.Email, Status: defaultClientStatus(form.Status), TrafficLimitBytes: limit, ExpiryTime: expiry, PasswordHash: hash, SubscriptionToken: token, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	if err := client.Validate(); err != nil {
+		return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientCreatePage(form, "/admin/clients", r.cfg.AppName, admin.Role, []string{err.Error()}))
+	}
+	if err := r.clients.Create(c.UserContext(), client); err != nil {
+		return err
+	}
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_create", "client", &client.ID, map[string]any{"username": client.Username, "status": client.Status})
+	return c.Redirect(fmt.Sprintf("/admin/clients/%d", client.ID), fiber.StatusFound)
 }
 
 func (r *Runner) getAdminClientDetail(c *fiber.Ctx) error {
@@ -150,6 +213,23 @@ func (r *Runner) postAdminClientUpdate(c *fiber.Ctx) error {
 	return c.Redirect(fmt.Sprintf("/admin/clients/%d", updated.ID), fiber.StatusFound)
 }
 
+func (r *Runner) postAdminClientDelete(c *fiber.Ctx) error {
+	admin, ok := currentAdmin(c)
+	if !ok {
+		return c.Redirect("/admin/login", fiber.StatusFound)
+	}
+	client, err := r.loadClientByParam(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return err
+	}
+	if err := r.clients.Delete(c.UserContext(), client.ID); err != nil {
+		return err
+	}
+	r.invalidateSubscriptionCache(c.UserContext(), client.SubscriptionToken)
+	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "client_delete", "client", &client.ID, map[string]any{"username": client.Username})
+	return c.Redirect("/admin/clients", fiber.StatusFound)
+}
+
 func parseClientEditForm(c *fiber.Ctx) clientEditForm {
 	return clientEditForm{
 		Username:         strings.TrimSpace(c.FormValue("username")),
@@ -159,6 +239,41 @@ func parseClientEditForm(c *fiber.Ctx) clientEditForm {
 		TrafficLimitText: strings.TrimSpace(c.FormValue("traffic_limit_bytes")),
 		ExpiryText:       strings.TrimSpace(c.FormValue("expiry_time")),
 	}
+}
+
+func parseClientCreateForm(c *fiber.Ctx) clientCreateForm {
+	return clientCreateForm{clientEditForm: parseClientEditForm(c), Password: strings.TrimSpace(c.FormValue("password"))}
+}
+
+func parseClientLimit(raw string) (int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	limit, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || limit < 0 {
+		return 0, errors.New("traffic limit must be a non-negative integer")
+	}
+	return limit, nil
+}
+
+func parseClientExpiry(raw string) (*time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	expiry, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return nil, errors.New("expiry must be RFC3339")
+	}
+	return &expiry, nil
+}
+
+func defaultClientStatus(status string) string {
+	if status == "disabled" {
+		return status
+	}
+	return "active"
 }
 
 func clientEditFormFromClient(client *models.Client) clientEditForm {
@@ -175,6 +290,24 @@ func clientEditFormFromClient(client *models.Client) clientEditForm {
 		form.ExpiryText = client.ExpiryTime.UTC().Format(time.RFC3339)
 	}
 	return form
+}
+
+func renderAdminClientCreatePage(form clientCreateForm, action, appName, adminRole string, errors []string) string {
+	var alert strings.Builder
+	for _, errMsg := range errors {
+		alert.WriteString(`<div class="alert alert-danger">` + html.EscapeString(errMsg) + `</div>`)
+	}
+	statusOptions := []string{"active", "disabled"}
+	var opts strings.Builder
+	for _, status := range statusOptions {
+		selected := ""
+		if form.Status == status {
+			selected = ` selected`
+		}
+		opts.WriteString(`<option value="` + status + `"` + selected + `>` + html.EscapeString(strings.Title(status)) + `</option>`)
+	}
+	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">Create client</h1><p class="text-body-secondary mb-0">Add a central client</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">Password</label><input class="form-control" id="password" name="password" type="password" required></div><div><label class="form-label" for="display_name">Display name</label><input class="form-control" id="display_name" name="display_name" value="` + html.EscapeString(form.DisplayName) + `"></div><div><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="` + html.EscapeString(form.Email) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div><label class="form-label" for="traffic_limit_bytes">Traffic limit bytes</label><input class="form-control" id="traffic_limit_bytes" name="traffic_limit_bytes" inputmode="numeric" value="` + html.EscapeString(form.TrafficLimitText) + `"></div><div><label class="form-label" for="expiry_time">Expiry time (RFC3339)</label><input class="form-control" id="expiry_time" name="expiry_time" value="` + html.EscapeString(form.ExpiryText) + `"><div class="form-text">Leave blank for no expiry.</div></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Create</button></div></form></div></div></div>`
+	return renderAdminShell(appName, adminRole, "clients", body)
 }
 
 func (r *Runner) postAdminClientDisable(c *fiber.Ctx) error {
@@ -537,18 +670,19 @@ func (r *Runner) postAdminClientAttachmentToggleEnabled(c *fiber.Ctx, enabled bo
 	return c.Redirect(fmt.Sprintf("/admin/clients/%d/attachments", client.ID), fiber.StatusFound)
 }
 
-func (r *Runner) loadAdminClientList(ctx context.Context) ([]adminClientListRow, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT c.id, c.username, c.password_hash, c.display_name, c.email, c.status, c.traffic_limit_bytes, c.expiry_time, c.subscription_token, c.created_at, c.updated_at, COALESCE(COUNT(a.id), 0) FROM clients c LEFT JOIN client_attachments a ON a.client_id = c.id GROUP BY c.id ORDER BY c.id ASC`)
+func (r *Runner) loadAdminClientList(ctx context.Context, filters clientListFilters) ([]adminClientListRow, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT c.id, c.username, c.password_hash, c.display_name, c.email, c.status, c.traffic_limit_bytes, c.expiry_time, c.subscription_token, c.created_at, c.updated_at, COALESCE(COUNT(a.id), 0), COALESCE(SUM(COALESCE(a.upload_bytes, 0) + COALESCE(a.download_bytes, 0)), 0) FROM clients c LEFT JOIN client_attachments a ON a.client_id = c.id GROUP BY c.id ORDER BY c.id ASC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var items []adminClientListRow
+	now := time.Now().UTC()
 	for rows.Next() {
 		var row adminClientListRow
 		var displayName, email, subscriptionToken sql.NullString
 		var expiryTime sql.NullTime
-		if err := rows.Scan(&row.ID, &row.Username, &row.PasswordHash, &displayName, &email, &row.Status, &row.TrafficLimitBytes, &expiryTime, &subscriptionToken, &row.CreatedAt, &row.UpdatedAt, &row.AttachmentCount); err != nil {
+		if err := rows.Scan(&row.ID, &row.Username, &row.PasswordHash, &displayName, &email, &row.Status, &row.TrafficLimitBytes, &expiryTime, &subscriptionToken, &row.CreatedAt, &row.UpdatedAt, &row.AttachmentCount, &row.TotalBytes); err != nil {
 			return nil, err
 		}
 		row.DisplayName = displayName.String
@@ -558,9 +692,32 @@ func (r *Runner) loadAdminClientList(ctx context.Context) ([]adminClientListRow,
 			t := expiryTime.Time
 			row.ExpiryTime = &t
 		}
+		if !clientListMatchesFilters(&row.Client, row.TotalBytes, now, filters) {
+			continue
+		}
 		items = append(items, row)
 	}
 	return items, rows.Err()
+}
+
+func clientListMatchesFilters(client *models.Client, totalBytes int64, now time.Time, filters clientListFilters) bool {
+	if client == nil {
+		return false
+	}
+	if filters.Query != "" {
+		needle := strings.ToLower(filters.Query)
+		if !strings.Contains(strings.ToLower(client.Username), needle) && !strings.Contains(strings.ToLower(client.DisplayName), needle) && !strings.Contains(strings.ToLower(client.Email), needle) {
+			return false
+		}
+	}
+	if filters.Status != "" && clientStatusLabel(client, totalBytes, now) != filters.Status {
+		return false
+	}
+	return true
+}
+
+func clientStatusLabel(client *models.Client, totalBytes int64, now time.Time) string {
+	return services.DetermineClientStatus(client, totalBytes, now)
 }
 
 func (r *Runner) loadClientByParam(ctx context.Context, idValue string) (*models.Client, error) {
@@ -902,16 +1059,40 @@ func sanitizeAttachmentSegment(value string) string {
 	return strings.Trim(b.String(), "_")
 }
 
-func renderAdminClientListPage(clients []adminClientListRow, appName, adminRole string) string {
+func renderAdminClientListPage(clients []adminClientListRow, filters clientListFilters, appName, adminRole string) string {
 	var rows strings.Builder
+	now := time.Now().UTC()
 	for _, client := range clients {
-		rows.WriteString(`<tr><td>` + html.EscapeString(client.Username) + `</td><td>` + html.EscapeString(defaultString(client.DisplayName, "-")) + `</td><td>` + html.EscapeString(defaultString(client.Email, "-")) + `</td><td>` + html.EscapeString(client.Status) + `</td><td>` + html.EscapeString(strconv.FormatInt(int64(client.AttachmentCount), 10)) + `</td><td class="text-nowrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Attachments</a></td></tr>`)
+		status := clientStatusLabel(&client.Client, client.TotalBytes, now)
+		rows.WriteString(`<tr><td>` + html.EscapeString(client.Username) + `</td><td>` + html.EscapeString(defaultString(client.DisplayName, "-")) + `</td><td>` + html.EscapeString(defaultString(client.Email, "-")) + `</td><td>` + clientStatusBadge(status) + `</td><td>` + html.EscapeString(strconv.FormatInt(int64(client.AttachmentCount), 10)) + `</td><td class="text-nowrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Attachments</a></td></tr>`)
 	}
 	if rows.Len() == 0 {
 		rows.WriteString(`<tr><td colspan="6" class="text-body-secondary">No clients yet.</td></tr>`)
 	}
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Clients</h1><p class="text-body-secondary mb-0">Manage client attachments</p></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Username</th><th>Display name</th><th>Email</th><th>Status</th><th>Attachments</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">Clients</h1><p class="text-body-secondary mb-0">Manage client attachments</p></div><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="/admin/clients/new">New client</a></div></div><div class="card shadow-sm mb-3"><div class="card-body"><form method="get" action="/admin/clients" class="row g-2 align-items-end"><div class="col-12 col-md-6"><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="` + html.EscapeString(filters.Query) + `" placeholder="Username, display name, or email"></div><div class="col-12 col-md-3"><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status"><option value="">All</option><option value="active"` + selectedOption(filters.Status, "active") + `>Active</option><option value="disabled"` + selectedOption(filters.Status, "disabled") + `>Disabled</option><option value="expired"` + selectedOption(filters.Status, "expired") + `>Expired</option><option value="limited"` + selectedOption(filters.Status, "limited") + `>Limited</option></select></div><div class="col-12 col-md-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Filter</button><a class="btn btn-outline-secondary" href="/admin/clients">Reset</a></div></form></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Username</th><th>Display name</th><th>Email</th><th>Status</th><th>Attachments</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
 	return renderAdminShell(appName, adminRole, "clients", body)
+}
+
+func selectedOption(current, value string) string {
+	if current == value {
+		return ` selected`
+	}
+	return ""
+}
+
+func clientStatusBadge(status string) string {
+	switch status {
+	case "active":
+		return `<span class="badge text-bg-success">active</span>`
+	case "disabled":
+		return `<span class="badge text-bg-dark">disabled</span>`
+	case "expired":
+		return `<span class="badge text-bg-warning">expired</span>`
+	case "limited":
+		return `<span class="badge text-bg-danger">limited</span>`
+	default:
+		return `<span class="badge text-bg-secondary">` + html.EscapeString(status) + `</span>`
+	}
 }
 
 func renderAdminClientAttachmentsPage(client *models.Client, attachments []models.ClientAttachment, options []inboundGroup, appName, adminRole string, messages []string) string {
@@ -972,7 +1153,7 @@ func renderAdminClientDetailPage(client *models.Client, summary clientSummary, a
 	case "disabled":
 		statusBadge = "dark"
 	}
-  buttons := `<div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/edit">Edit</a><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Manage attachments</a><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/regenerate-token"><button class="btn btn-outline-primary btn-sm" type="submit">Regenerate subscription token</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/reset-password"><button class="btn btn-outline-warning btn-sm" type="submit">Reset password</button></form>`
+	buttons := `<div class="d-flex gap-2 flex-wrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/edit">Edit</a><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Manage attachments</a><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/regenerate-token"><button class="btn btn-outline-primary btn-sm" type="submit">Regenerate subscription token</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/reset-password"><button class="btn btn-outline-warning btn-sm" type="submit">Reset password</button></form><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/delete" onsubmit="return confirm('Delete this client?')"><button class="btn btn-outline-danger btn-sm" type="submit">Delete</button></form>`
 	if client.Status == "disabled" {
 		buttons += `<form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/enable"><button class="btn btn-outline-success btn-sm" type="submit">Enable</button></form>`
 	} else {
