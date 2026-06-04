@@ -247,7 +247,30 @@ hub/
 
 ---
 
-# 7. Environment Configuration
+# 7. Database ORM Adoption Plan
+
+Goal: gradually replace raw SQL for hub-owned database work with GORM while keeping SQLite as the primary database.
+
+Phase 1:
+
+* Add GORM and the SQLite driver to the project.
+* Add a shared GORM database initialization path.
+* Keep migrations and existing repositories working during the transition.
+
+Phase 2:
+
+* Migrate low-risk repositories first.
+* Keep repository interfaces stable so app code changes stay small.
+* Add tests for the migrated repositories before moving the next one.
+
+Phase 3:
+
+* Move remaining hub-owned database operations off raw SQL.
+* Keep backup/restore and schema versioning reliable throughout the migration.
+
+---
+
+# 8. Environment Configuration
 
 Create:
 

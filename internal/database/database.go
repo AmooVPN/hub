@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/glebarez/sqlite"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -27,18 +27,25 @@ func OpenSQLite(path string) (*sql.DB, error) {
 		return nil, err
 	}
 
+	if err := applySQLitePragmas(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func applySQLitePragmas(ctx context.Context, db *sql.DB) error {
 	for _, pragma := range []string{
 		"PRAGMA journal_mode=WAL;",
 		"PRAGMA foreign_keys=ON;",
 		"PRAGMA busy_timeout=5000;",
 	} {
 		if _, err := db.ExecContext(ctx, pragma); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("apply sqlite pragma %q: %w", pragma, err)
+			return fmt.Errorf("apply sqlite pragma %q: %w", pragma, err)
 		}
 	}
-
-	return db, nil
+	return nil
 }
 
 func OpenRedis(addr, password string, dbNumber int) (*redis.Client, error) {
