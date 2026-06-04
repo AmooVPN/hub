@@ -87,10 +87,19 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return runCompose("up", "-d", "--build", "--remove-orphans")
 	case "status":
+		if len(rest) != 0 {
+			return fmt.Errorf("status does not take arguments")
+		}
 		return runCompose("ps")
 	case "logs":
+		if len(rest) != 0 {
+			return fmt.Errorf("logs does not take arguments")
+		}
 		return runCompose("logs", "-f", "--tail", "100", serviceName)
 	case "backup":
+		if len(rest) != 0 {
+			return fmt.Errorf("backup does not take arguments")
+		}
 		return runCompose("run", "--rm", "--no-deps", serviceName, "backup", "export")
 	case "restore":
 		return runRestore(rest)
