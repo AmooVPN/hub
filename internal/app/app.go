@@ -41,6 +41,7 @@ type Runner struct {
 	backups        *services.BackupService
 	audit          repositories.AuditRepository
 	webhooks       *services.WebhookService
+	notifications  *services.NotificationService
 	logger         *slog.Logger
 	loginLocks     *attemptTracker
 	server         *fiber.App
@@ -88,6 +89,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 	audit := repositories.NewAuditRepository(db)
 	webhookDefs := repositories.NewWebhookRepository(db)
 	webhookDeliveries := repositories.NewWebhookDeliveryRepository(db)
+	notifications := repositories.NewNotificationRepository(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -113,6 +115,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		backups:        services.NewBackupService(),
 		audit:          audit,
 		webhooks:       services.NewWebhookService(webhookDefs, webhookDeliveries),
+		notifications:  services.NewNotificationService(notifications),
 		logger:         logger,
 		loginLocks:     newAttemptTracker(5, 15*time.Minute),
 	}
@@ -166,6 +169,19 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/backups/import", security.RequirePermission(security.PermissionViewDashboard), r.postAdminBackupsImport)
 	app.Get("/admin/backups/download/:filename", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackupsDownload)
 	app.Post("/admin/backups/delete/:filename", security.RequirePermission(security.PermissionViewDashboard), r.postAdminBackupsDelete)
+	app.Get("/admin/notifications", security.RequirePermission(security.PermissionViewDashboard), r.getAdminNotifications)
+	app.Get("/admin/notifications/bell", security.RequirePermission(security.PermissionViewDashboard), r.getAdminNotificationBell)
+	app.Post("/admin/notifications/:id/read", security.RequirePermission(security.PermissionViewDashboard), r.postAdminNotificationRead)
+	app.Post("/admin/notifications/read-all", security.RequirePermission(security.PermissionViewDashboard), r.postAdminNotificationsReadAll)
+	app.Get("/admin/webhooks", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhooks)
+	app.Get("/admin/webhooks/new", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhookNew)
+	app.Post("/admin/webhooks", security.RequirePermission(security.PermissionManageSettings), r.postAdminWebhookCreate)
+	app.Get("/admin/webhooks/:id", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhookDetail)
+	app.Get("/admin/webhooks/:id/edit", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhookEdit)
+	app.Post("/admin/webhooks/:id", security.RequirePermission(security.PermissionManageSettings), r.postAdminWebhookUpdate)
+	app.Post("/admin/webhooks/:id/delete", security.RequirePermission(security.PermissionManageSettings), r.postAdminWebhookDelete)
+	app.Post("/admin/webhooks/:id/test", security.RequirePermission(security.PermissionManageSettings), r.postAdminWebhookTest)
+	app.Get("/admin/webhooks/:id/deliveries", security.RequirePermission(security.PermissionManageSettings), r.getAdminWebhookDeliveries)
 	app.Get("/admin/subscriptions", security.RequirePermission(security.PermissionManageSubscriptions), r.getAdminSubscriptions)
 	app.Get("/admin/subscriptions/:client_id", security.RequirePermission(security.PermissionManageSubscriptions), r.getAdminSubscriptionDetail)
 	app.Post("/admin/subscriptions/:client_id/regenerate", security.RequirePermission(security.PermissionManageSubscriptions), r.postAdminSubscriptionRegenerate)

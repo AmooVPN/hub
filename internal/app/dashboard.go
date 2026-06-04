@@ -32,6 +32,7 @@ type dashboardSummary struct {
 	RecentSyncJobs   []dashboardSyncJob
 	RecentAudits     []models.AuditLog
 	RecentErrors     []dashboardError
+	RecentNotices    []models.Notification
 }
 
 type dashboardSyncJob struct {
@@ -128,6 +129,13 @@ func (r *Runner) loadDashboardSummary(ctx context.Context) (dashboardSummary, er
 	if err := r.loadRecentErrors(ctx, &summary); err != nil {
 		return summary, err
 	}
+	if r.notifications != nil {
+		notices, err := r.notifications.ListRecent(ctx, 5)
+		if err != nil {
+			return summary, err
+		}
+		summary.RecentNotices = notices
+	}
 	return summary, nil
 }
 
@@ -175,7 +183,7 @@ func renderDashboardPage(admin *models.AdminUser, appName string, summary dashbo
 	if security.HasPermission(admin.Role, security.PermissionManagePanels) {
 		trafficLink = `<form method="post" action="/admin/sync/traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form>`
 	}
-	body := `<script src="https://unpkg.com/htmx.org@1.9.12"></script><div class="d-flex flex-column gap-4"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3"><div><h1 class="h3 mb-1">Dashboard</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="d-flex gap-2 flex-wrap">` + usersLink + trafficLink + `<a class="btn btn-outline-secondary btn-sm" href="/admin/settings">Settings</a><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div><div id="dashboard-widgets" hx-get="/admin/dashboard/widgets" hx-trigger="load, every 30s" hx-swap="outerHTML">` + renderDashboardWidgets(summary) + `</div><div>` + renderDashboardMonitoring(summary) + `</div><div class="row g-3"><div class="col-12 col-xl-6">` + renderDashboardSyncJobs(summary.RecentSyncJobs) + `</div><div class="col-12 col-xl-6">` + renderDashboardAudits(summary.RecentAudits) + `</div><div class="col-12"><div class="card"><div class="card-header fw-semibold">Recent errors</div><div class="card-body">` + renderDashboardErrors(summary.RecentErrors) + `</div></div></div></div></div>`
+	body := `<script src="https://unpkg.com/htmx.org@1.9.12"></script><div class="d-flex flex-column gap-4"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3"><div><h1 class="h3 mb-1">Dashboard</h1><p class="text-body-secondary mb-0">Signed in as ` + html.EscapeString(admin.Username) + ` (` + html.EscapeString(admin.Role) + `)</p></div><div class="d-flex gap-2 flex-wrap">` + usersLink + trafficLink + `<a class="btn btn-outline-secondary btn-sm" href="/admin/settings">Settings</a><form method="post" action="/admin/logout"><button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button></form></div></div><div id="dashboard-widgets" hx-get="/admin/dashboard/widgets" hx-trigger="load, every 30s" hx-swap="outerHTML">` + renderDashboardWidgets(summary) + `</div><div>` + renderDashboardMonitoring(summary) + `</div><div class="row g-3"><div class="col-12 col-xl-6">` + renderDashboardSyncJobs(summary.RecentSyncJobs) + `</div><div class="col-12 col-xl-6">` + renderDashboardAudits(summary.RecentAudits) + `</div><div class="col-12"><div class="card shadow-sm"><div class="card-header fw-semibold">Recent notifications</div><div class="card-body">` + renderDashboardNotifications(summary.RecentNotices) + `</div></div></div><div class="col-12"><div class="card"><div class="card-header fw-semibold">Recent errors</div><div class="card-body">` + renderDashboardErrors(summary.RecentErrors) + `</div></div></div></div></div>`
 	return renderAdminShell(appName, admin.Role, "dashboard", body)
 }
 
@@ -243,6 +251,17 @@ func renderDashboardErrors(items []dashboardError) string {
 	var out strings.Builder
 	for _, item := range items {
 		out.WriteString(`<div class="border rounded p-3 mb-2"><div class="fw-semibold">` + html.EscapeString(item.Name) + `</div><div class="text-danger small">` + html.EscapeString(item.Message) + `</div><div class="text-body-secondary small">` + html.EscapeString(item.When.Format(time.RFC3339)) + `</div></div>`)
+	}
+	return out.String()
+}
+
+func renderDashboardNotifications(items []models.Notification) string {
+	if len(items) == 0 {
+		return `<div class="text-body-secondary">No recent notifications.</div>`
+	}
+	var out strings.Builder
+	for _, item := range items {
+		out.WriteString(`<div class="border rounded p-3 mb-2"><div class="d-flex align-items-center justify-content-between gap-2"><div class="fw-semibold">` + html.EscapeString(item.Title) + `</div><span class="badge text-bg-` + notificationTone(item.Severity) + `">` + html.EscapeString(item.Severity) + `</span></div><div class="text-body-secondary small">` + html.EscapeString(item.Message) + `</div><div class="text-body-secondary small">` + html.EscapeString(item.CreatedAt.Format(time.RFC3339)) + `</div></div>`)
 	}
 	return out.String()
 }

@@ -48,6 +48,9 @@ func (r *Runner) getAdminBackupsExport(c *fiber.Ctx) error {
 	if r.metrics != nil {
 		r.metrics.IncBackupExport()
 	}
+	if r.notifications != nil {
+		_ = r.notifications.Notify(ctx, models.NotificationTypeBackupExportCompleted, models.NotificationSeveritySuccess, "Backup exported", "Created backup "+rec.Name)
+	}
 	if deleted, cleanupErr := r.backups.CleanupOldBackups(r.cfg.BackupDir, r.cfg.BackupRetentionCount, r.cfg.BackupRetentionDays, rec.Name); cleanupErr != nil {
 		if r.logger != nil {
 			r.logger.Warn("backup retention cleanup failed", "error", cleanupErr)
@@ -130,6 +133,9 @@ func (r *Runner) postAdminBackupsImport(c *fiber.Ctx) error {
 	}
 	result, err := r.backups.PrepareImport(c.UserContext(), data, r.cfg.DatabasePath, r.cfg.BackupDir, r.cfg.AppName)
 	if err != nil {
+		if r.notifications != nil {
+			_ = r.notifications.Notify(c.UserContext(), models.NotificationTypeBackupImportFailed, models.NotificationSeverityDanger, "Backup import failed", err.Error())
+		}
 		_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "backup_import_failed", "backup", nil, map[string]any{"filename": file.Filename, "error": err.Error()})
 		items, listErr := r.backups.List(r.cfg.BackupDir)
 		if listErr != nil {
@@ -142,6 +148,9 @@ func (r *Runner) postAdminBackupsImport(c *fiber.Ctx) error {
 	}
 	if r.webhooks != nil {
 		_, _ = r.webhooks.Publish(c.UserContext(), models.WebhookEventBackupImported, map[string]any{"filename": file.Filename, "app": result.Metadata.App, "schema_version": result.Metadata.SchemaVersion, "safety_backup": result.SafetyBackup.Name, "staged_file": result.StagedName})
+	}
+	if r.notifications != nil {
+		_ = r.notifications.Notify(c.UserContext(), models.NotificationTypeBackupImportCompleted, models.NotificationSeveritySuccess, "Backup import validated", "Validated "+file.Filename)
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "backup_import_prepare", "backup", nil, map[string]any{"filename": file.Filename, "app": result.Metadata.App, "schema_version": result.Metadata.SchemaVersion, "safety_backup": result.SafetyBackup.Name, "staged_file": result.StagedName})
 	items, err := r.backups.List(r.cfg.BackupDir)

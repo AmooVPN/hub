@@ -166,6 +166,15 @@ func (r *Runner) postAdminPanelTest(c *fiber.Ctx) error {
 	if err := r.panels.Update(c.UserContext(), panel); err != nil {
 		return err
 	}
+	if r.notifications != nil && status != models.PanelStatusOnline {
+		severity := models.NotificationSeverityWarning
+		typ := models.NotificationTypePanelOffline
+		if status == models.PanelStatusAuthError {
+			severity = models.NotificationSeverityDanger
+			typ = models.NotificationTypePanelAuthError
+		}
+		_ = r.notifications.Notify(c.UserContext(), typ, severity, "Panel test failed", panel.Name+": "+message)
+	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_test", "panel", &panel.ID, map[string]any{"status": status})
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
 }
@@ -190,6 +199,15 @@ func (r *Runner) postAdminPanelHealth(c *fiber.Ctx) error {
 	}
 	if err := r.panels.Update(c.UserContext(), panel); err != nil {
 		return err
+	}
+	if r.notifications != nil && result.Status != models.PanelStatusOnline {
+		severity := models.NotificationSeverityWarning
+		typ := models.NotificationTypePanelOffline
+		if result.Status == models.PanelStatusAuthError {
+			severity = models.NotificationSeverityDanger
+			typ = models.NotificationTypePanelAuthError
+		}
+		_ = r.notifications.Notify(c.UserContext(), typ, severity, "Panel health check", panel.Name+": "+result.Message)
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_health_check", "panel", &panel.ID, map[string]any{"status": panel.Status, "error": panel.LastError})
 	if err != nil {

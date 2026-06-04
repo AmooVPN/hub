@@ -81,7 +81,7 @@ func (s *WebhookService) Publish(ctx context.Context, event string, payload any)
 	}
 	deliveries := make([]models.WebhookDelivery, 0, len(webhooks))
 	for i := range webhooks {
-		delivery, err := s.publishOne(ctx, webhooks[i], event, payload)
+		delivery, err := s.DeliverToWebhook(ctx, webhooks[i], event, payload)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,59 @@ func (s *WebhookService) Publish(ctx context.Context, event string, payload any)
 	return deliveries, nil
 }
 
-func (s *WebhookService) publishOne(ctx context.Context, webhook models.Webhook, event string, payload any) (models.WebhookDelivery, error) {
+func (s *WebhookService) ListWebhooks(ctx context.Context) ([]models.Webhook, error) {
+	if s == nil || s.webhooks == nil {
+		return nil, errors.New("webhook service is not configured")
+	}
+	return s.webhooks.List(ctx)
+}
+
+func (s *WebhookService) GetWebhook(ctx context.Context, id int64) (*models.Webhook, error) {
+	if s == nil || s.webhooks == nil {
+		return nil, errors.New("webhook service is not configured")
+	}
+	return s.webhooks.FindByID(ctx, id)
+}
+
+func (s *WebhookService) CreateWebhook(ctx context.Context, webhook *models.Webhook) error {
+	if s == nil || s.webhooks == nil {
+		return errors.New("webhook service is not configured")
+	}
+	return s.webhooks.Create(ctx, webhook)
+}
+
+func (s *WebhookService) UpdateWebhook(ctx context.Context, webhook *models.Webhook) error {
+	if s == nil || s.webhooks == nil {
+		return errors.New("webhook service is not configured")
+	}
+	return s.webhooks.Update(ctx, webhook)
+}
+
+func (s *WebhookService) DeleteWebhook(ctx context.Context, id int64) error {
+	if s == nil || s.webhooks == nil {
+		return errors.New("webhook service is not configured")
+	}
+	return s.webhooks.Delete(ctx, id)
+}
+
+func (s *WebhookService) ListDeliveries(ctx context.Context, webhookID int64) ([]models.WebhookDelivery, error) {
+	if s == nil || s.deliveries == nil {
+		return nil, errors.New("webhook service is not configured")
+	}
+	return s.deliveries.ListByWebhook(ctx, webhookID)
+}
+
+func (s *WebhookService) GetDelivery(ctx context.Context, id int64) (*models.WebhookDelivery, error) {
+	if s == nil || s.deliveries == nil {
+		return nil, errors.New("webhook service is not configured")
+	}
+	return s.deliveries.FindByID(ctx, id)
+}
+
+func (s *WebhookService) DeliverToWebhook(ctx context.Context, webhook models.Webhook, event string, payload any) (models.WebhookDelivery, error) {
+	if s == nil || s.deliveries == nil {
+		return models.WebhookDelivery{}, errors.New("webhook service is not configured")
+	}
 	now := s.now
 	if now == nil {
 		now = time.Now

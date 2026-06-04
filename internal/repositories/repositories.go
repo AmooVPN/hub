@@ -71,6 +71,15 @@ type RefreshTokenRepository interface {
 	RevokeByHash(context.Context, string) error
 }
 
+type NotificationRepository interface {
+	Create(context.Context, *models.Notification) error
+	ListRecent(context.Context, int) ([]models.Notification, error)
+	CountUnread(context.Context) (int64, error)
+	FindByID(context.Context, int64) (*models.Notification, error)
+	MarkRead(context.Context, int64) error
+	MarkAllRead(context.Context) error
+}
+
 type WebhookRepository interface {
 	Create(context.Context, *models.Webhook) error
 	Update(context.Context, *models.Webhook) error
@@ -96,6 +105,7 @@ type sqliteRefreshTokenRepository struct{ db *sql.DB }
 type sqliteInboundRepository struct{ db *sql.DB }
 type sqliteWebhookRepository struct{ db *sql.DB }
 type sqliteWebhookDeliveryRepository struct{ db *sql.DB }
+type sqliteNotificationRepository struct{ db *sql.DB }
 
 func NewAdminRepository(db *sql.DB) AdminRepository     { return &sqliteAdminRepository{db: db} }
 func NewClientRepository(db *sql.DB) ClientRepository   { return &sqliteClientRepository{db: db} }
@@ -110,6 +120,7 @@ func NewWebhookRepository(db *sql.DB) WebhookRepository { return &sqliteWebhookR
 func NewWebhookDeliveryRepository(db *sql.DB) WebhookDeliveryRepository {
 	return &sqliteWebhookDeliveryRepository{db: db}
 }
+func NewNotificationRepository(db *sql.DB) NotificationRepository { return &sqliteNotificationRepository{db: db} }
 
 func (r *sqliteAdminRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
@@ -879,6 +890,81 @@ func (r *sqliteWebhookDeliveryRepository) ListByWebhook(ctx context.Context, web
 		items = append(items, *delivery)
 	}
 	return items, rows.Err()
+}
+
+func (r *sqliteNotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
+	if notification == nil {
+		return errors.New("notification is nil")
+	}
+	if notification.CreatedAt.IsZero() {
+		notification.CreatedAt = time.Now().UTC()
+	}
+	result, err := r.db.ExecContext(ctx, `INSERT INTO notifications (type, severity, title, message, read_at, created_at) VALUES (?, ?, ?, ?, ?, ?)`, notification.Type, notification.Severity, notification.Title, notification.Message, nullTime(notification.ReadAt), notification.CreatedAt.UTC())
+	if err != nil {
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	notification.ID = id
+	return nil
+}
+
+func (r *sqliteNotificationRepository) ListRecent(ctx context.Context, limit int) ([]models.Notification, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT id, type, severity, title, message, read_at, created_at FROM notifications ORDER BY id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.Notification, 0)
+	for rows.Next() {
+		notification, err := scanNotification(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, *notification)
+	}
+	return items, rows.Err()
+}
+
+func (r *sqliteNotificationRepository) CountUnread(ctx context.Context) (int64, error) {
+	var count int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notifications WHERE read_at IS NULL`).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *sqliteNotificationRepository) FindByID(ctx context.Context, id int64) (*models.Notification, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT id, type, severity, title, message, read_at, created_at FROM notifications WHERE id = ?`, id)
+	return scanNotification(row)
+}
+
+func (r *sqliteNotificationRepository) MarkRead(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = ? WHERE id = ? AND read_at IS NULL`, time.Now().UTC(), id)
+	return err
+}
+
+func (r *sqliteNotificationRepository) MarkAllRead(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = ? WHERE read_at IS NULL`, time.Now().UTC())
+	return err
+}
+
+func scanNotification(scanner interface{ Scan(...any) error }) (*models.Notification, error) {
+	var notification models.Notification
+	var readAt sql.NullTime
+	if err := scanner.Scan(&notification.ID, &notification.Type, &notification.Severity, &notification.Title, &notification.Message, &readAt, &notification.CreatedAt); err != nil {
+		return nil, err
+	}
+	if readAt.Valid {
+		t := readAt.Time
+		notification.ReadAt = &t
+	}
+	return &notification, nil
 }
 
 func scanWebhookDelivery(scanner interface{ Scan(...any) error }) (*models.WebhookDelivery, error) {
