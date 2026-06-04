@@ -141,24 +141,44 @@ func (c *XUIClient) deleteJSON(ctx context.Context, path string, out any) error 
 }
 
 func (c *XUIClient) requestJSON(ctx context.Context, method, path string, in any, out any) error {
-	var body io.Reader
+	var payload []byte
 	if in != nil {
 		buf, err := json.Marshal(in)
 		if err != nil {
 			return &XUIError{PanelID: c.PanelID, Operation: method + " " + path, Message: ErrXUIBadResponse.Error(), Cause: err}
 		}
-		body = bytes.NewReader(buf)
+		payload = buf
 	}
-	resp, err := c.do(ctx, method, path, body, "application/json")
-	if err != nil {
-		return normalizeHTTPError(c.PanelID, method+" "+path, err)
+	doRequest := func() (*http.Response, error) {
+		var body io.Reader
+		if payload != nil {
+			body = bytes.NewReader(payload)
+		}
+		return c.do(ctx, method, path, body, "application/json")
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return normalizeStatusError(c.PanelID, method+" "+path, resp.StatusCode)
+	for attempt := 0; attempt < 2; attempt++ {
+		resp, err := doRequest()
+		if err != nil {
+			return normalizeHTTPError(c.PanelID, method+" "+path, err)
+		}
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			if attempt == 0 && c.loggedIn {
+				_ = resp.Body.Close()
+				if err := c.Login(ctx); err == nil {
+					continue
+				}
+			}
+			defer resp.Body.Close()
+			return normalizeStatusError(c.PanelID, method+" "+path, resp.StatusCode)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return normalizeStatusError(c.PanelID, method+" "+path, resp.StatusCode)
+		}
+		if out == nil {
+			return nil
+		}
+		return json.NewDecoder(resp.Body).Decode(out)
 	}
-	if out == nil {
-		return nil
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	return ErrXUIBadResponse
 }

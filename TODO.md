@@ -4376,13 +4376,13 @@ Timeout
 
 Tasks:
 
-* [ ] Mock login endpoint.
-* [ ] Mock inbound endpoint.
-* [ ] Mock add client endpoint.
-* [ ] Mock session expiration.
-* [ ] Test auto re-login.
-* [ ] Test normalized errors.
-* [ ] Test no secret leakage in logs.
+* [x] Mock login endpoint.
+* [x] Mock inbound endpoint.
+* [x] Mock add client endpoint.
+* [x] Mock session expiration.
+* [x] Test auto re-login.
+* [x] Test normalized errors.
+* [x] Test no secret leakage in logs.
 
 ---
 
@@ -4405,10 +4405,10 @@ Health endpoints
 
 Tasks:
 
-* [ ] Add Fiber app test helper.
-* [ ] Add authenticated admin request helper.
-* [ ] Add authenticated client request helper.
-* [ ] Add JWT helper.
+* [x] Add Fiber app test helper.
+* [x] Add authenticated admin request helper.
+* [x] Add authenticated client request helper.
+* [x] Add JWT helper.
 
 ---
 
