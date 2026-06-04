@@ -4521,8 +4521,8 @@ Tasks:
 
 * [x] Place vendor assets in `web/static/vendor`.
 * [x] Reference local assets in templates.
-* [ ] Add cache headers.
-* [ ] Add asset versioning later.
+* [x] Add cache headers.
+* [x] Add asset versioning later.
 
 ---
 
@@ -4530,20 +4530,20 @@ Tasks:
 
 All pages must have:
 
-* [ ] Dark mode.
-* [ ] Responsive layout.
-* [ ] Mobile navigation.
-* [ ] Loading states.
-* [ ] Empty states.
-* [ ] Error states.
-* [ ] Confirmation modals.
-* [ ] Copy buttons.
-* [ ] Form validation messages.
-* [ ] Consistent buttons.
-* [ ] Consistent cards.
-* [ ] Consistent badges.
-* [ ] Accessible labels.
-* [ ] Keyboard-friendly forms.
+* [x] Dark mode.
+* [x] Responsive layout.
+* [x] Mobile navigation.
+* [x] Loading states.
+* [x] Empty states.
+* [x] Error states.
+* [x] Confirmation modals.
+* [x] Copy buttons.
+* [x] Form validation messages.
+* [x] Consistent buttons.
+* [x] Consistent cards.
+* [x] Consistent badges.
+* [x] Accessible labels.
+* [x] Keyboard-friendly forms.
 
 ---
 

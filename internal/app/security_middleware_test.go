@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -109,10 +110,35 @@ func TestValidatePanelBaseURL(t *testing.T) {
 
 func TestRenderPageUsesLocalAssets(t *testing.T) {
 	page := renderPage("Test", "<main>ok</main>")
-	for _, expected := range []string{"/static/vendor/bootstrap/bootstrap.min.css", "/static/vendor/bootstrap/bootstrap.bundle.min.js"} {
+	for _, expected := range []string{"/static/vendor/bootstrap/bootstrap.min.css?v=", "/static/vendor/bootstrap/bootstrap.bundle.min.js?v=", "prefers-color-scheme", "global-loading-indicator"} {
 		if !strings.Contains(page, expected) {
 			t.Fatalf("expected %q in page", expected)
 		}
+	}
+}
+
+func TestStaticAssetURLAddsVersion(t *testing.T) {
+	for _, rel := range []string{"vendor/bootstrap/bootstrap.min.css", "vendor/htmx/htmx.min.js"} {
+		url := staticAssetURL(rel)
+		if !strings.HasPrefix(url, "/static/"+rel) {
+			t.Fatalf("unexpected asset url: %q", url)
+		}
+		if !regexp.MustCompile(`\?v=\d+$`).MatchString(url) {
+			t.Fatalf("expected version query in %q", url)
+		}
+	}
+}
+
+func TestStaticAssetsHaveLongCacheHeaders(t *testing.T) {
+	r, _ := newHandlerTestRunner(t)
+	app := r.buildServer()
+	req := httptest.NewRequest(http.MethodGet, "/static/vendor/bootstrap/bootstrap.min.css", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+	if got := resp.Header.Get("Cache-Control"); !strings.Contains(got, "max-age=31536000") || !strings.Contains(got, "immutable") {
+		t.Fatalf("expected immutable cache headers, got %q", got)
 	}
 }
 

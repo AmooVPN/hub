@@ -25,6 +25,16 @@ func (r *Runner) securityHeadersMiddleware() fiber.Handler {
 	}
 }
 
+func (r *Runner) assetCacheMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		err := c.Next()
+		if isStaticAssetRequest(c) && (c.Response().StatusCode() == fiber.StatusOK || c.Response().StatusCode() == fiber.StatusPartialContent) {
+			c.Set("Cache-Control", staticAssetCacheControl())
+		}
+		return err
+	}
+}
+
 func (r *Runner) csrfMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		secure := r != nil && r.cfg != nil && r.cfg.IsProduction()
