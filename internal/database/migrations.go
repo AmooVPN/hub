@@ -225,6 +225,17 @@ var migrations = []Migration{
 			`ALTER TABLE panels ADD COLUMN encrypted_api_token TEXT;`,
 		},
 	},
+	{
+		Version: 9,
+		Name:    "add_app_settings",
+		SQL: []string{
+			`CREATE TABLE IF NOT EXISTS app_settings (
+				key TEXT PRIMARY KEY,
+				value TEXT NOT NULL,
+				updated_at DATETIME NOT NULL
+			);`,
+		},
+	},
 }
 
 func RunMigrations(db *sql.DB) error {

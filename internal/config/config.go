@@ -145,6 +145,133 @@ func (c *Config) EnsurePaths() error {
 	return nil
 }
 
+func (c *Config) ApplySettings(values map[string]string) error {
+	if c == nil || len(values) == 0 {
+		return nil
+	}
+	if value, ok := values["APP_BASE_URL"]; ok && strings.TrimSpace(value) != "" {
+		c.AppBaseURL = strings.TrimSpace(value)
+	}
+	if value, ok := values["SESSION_COOKIE_NAME"]; ok && strings.TrimSpace(value) != "" {
+		c.SessionCookieName = strings.TrimSpace(value)
+	}
+	if value, ok := values["SESSION_TTL_HOURS"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid SESSION_TTL_HOURS: %w", err)
+		}
+		c.SessionTTLHrs = parsed
+	}
+	if value, ok := values["JWT_ACCESS_TTL_MINUTES"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid JWT_ACCESS_TTL_MINUTES: %w", err)
+		}
+		c.JWTAccessTTLMinutes = parsed
+	}
+	if value, ok := values["JWT_REFRESH_TTL_DAYS"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid JWT_REFRESH_TTL_DAYS: %w", err)
+		}
+		c.JWTRefreshTTLDays = parsed
+	}
+	if value, ok := values["BACKUP_DIR"]; ok && strings.TrimSpace(value) != "" {
+		c.BackupDir = strings.TrimSpace(value)
+	}
+	if value, ok := values["AUTOMATIC_BACKUP_ENABLED"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid AUTOMATIC_BACKUP_ENABLED: %w", err)
+		}
+		c.AutomaticBackupEnabled = parsed
+	}
+	if value, ok := values["AUTOMATIC_BACKUP_SCHEDULE"]; ok && strings.TrimSpace(value) != "" {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if !isValidBackupSchedule(value) {
+			return fmt.Errorf("invalid AUTOMATIC_BACKUP_SCHEDULE")
+		}
+		c.AutomaticBackupSchedule = value
+	}
+	if value, ok := values["BACKUP_RETENTION_COUNT"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid BACKUP_RETENTION_COUNT: %w", err)
+		}
+		c.BackupRetentionCount = parsed
+	}
+	if value, ok := values["BACKUP_RETENTION_DAYS"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid BACKUP_RETENTION_DAYS: %w", err)
+		}
+		c.BackupRetentionDays = parsed
+	}
+	if value, ok := values["METRICS_ENABLED"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid METRICS_ENABLED: %w", err)
+		}
+		c.MetricsEnabled = parsed
+	}
+	if value, ok := values["TRUST_PROXY"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid TRUST_PROXY: %w", err)
+		}
+		c.TrustProxy = parsed
+	}
+	if value, ok := values["TRUSTED_PROXIES"]; ok {
+		c.TrustedProxies = splitEnvList(value)
+	}
+	if value, ok := values["PANEL_URL_STRICT_MODE"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid PANEL_URL_STRICT_MODE: %w", err)
+		}
+		c.PanelURLStrictMode = parsed
+	}
+	if value, ok := values["PANEL_URL_ALLOW_PRIVATE"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid PANEL_URL_ALLOW_PRIVATE: %w", err)
+		}
+		c.PanelURLAllowPrivate = parsed
+	}
+	if value, ok := values["MAX_UPLOAD_SIZE_MB"]; ok && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("invalid MAX_UPLOAD_SIZE_MB: %w", err)
+		}
+		c.MaxUploadSizeMB = parsed
+	}
+	return nil
+}
+
+func (c *Config) SettingsMap() map[string]string {
+	if c == nil {
+		return map[string]string{}
+	}
+	return map[string]string{
+		"APP_BASE_URL":            c.AppBaseURL,
+		"SESSION_COOKIE_NAME":     c.SessionCookieName,
+		"SESSION_TTL_HOURS":       strconv.Itoa(c.SessionTTLHrs),
+		"JWT_ACCESS_TTL_MINUTES":  strconv.Itoa(c.JWTAccessTTLMinutes),
+		"JWT_REFRESH_TTL_DAYS":    strconv.Itoa(c.JWTRefreshTTLDays),
+		"BACKUP_DIR":              c.BackupDir,
+		"AUTOMATIC_BACKUP_ENABLED": strconv.FormatBool(c.AutomaticBackupEnabled),
+		"AUTOMATIC_BACKUP_SCHEDULE": c.AutomaticBackupSchedule,
+		"BACKUP_RETENTION_COUNT":  strconv.Itoa(c.BackupRetentionCount),
+		"BACKUP_RETENTION_DAYS":   strconv.Itoa(c.BackupRetentionDays),
+		"METRICS_ENABLED":         strconv.FormatBool(c.MetricsEnabled),
+		"TRUST_PROXY":             strconv.FormatBool(c.TrustProxy),
+		"TRUSTED_PROXIES":         strings.Join(c.TrustedProxies, ","),
+		"PANEL_URL_STRICT_MODE":   strconv.FormatBool(c.PanelURLStrictMode),
+		"PANEL_URL_ALLOW_PRIVATE": strconv.FormatBool(c.PanelURLAllowPrivate),
+		"MAX_UPLOAD_SIZE_MB":      strconv.Itoa(c.MaxUploadSizeMB),
+	}
+}
+
 func (c *Config) IsProduction() bool {
 	return strings.EqualFold(c.AppEnv, "production")
 }

@@ -31,7 +31,23 @@ func TestUpdateEnvFileUpdatesValues(t *testing.T) {
 func TestPrintHelp(t *testing.T) {
 	var buf strings.Builder
 	printHelp(&buf)
-	if got := buf.String(); !strings.Contains(got, "ahub create env") || !strings.Contains(got, "ahub start") {
+	if got := buf.String(); !strings.Contains(got, "ahub create env") || !strings.Contains(got, "ahub start") || !strings.Contains(got, "--no-follow") {
 		t.Fatalf("unexpected help text: %s", got)
+	}
+}
+
+func TestBuildLogsComposeArgs(t *testing.T) {
+	args, err := buildLogsComposeArgs([]string{"--tail", "25", "--since", "1h", "--no-follow"})
+	if err != nil {
+		t.Fatalf("build logs args: %v", err)
+	}
+	joined := strings.Join(args, " ")
+	for _, expected := range []string{"logs", "--tail 25", "--since 1h", "hub"} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected %q in %q", expected, joined)
+		}
+	}
+	if strings.Contains(joined, "-f") {
+		t.Fatalf("did not expect follow flag in %q", joined)
 	}
 }

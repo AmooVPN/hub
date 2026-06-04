@@ -71,6 +71,7 @@ func newEmptyHandlerTestRunner(t *testing.T) (*Runner, *config.Config) {
 		clients:    repositories.NewClientRepository(db),
 		clientsSvc: services.NewClientService(repositories.NewClientRepository(db)),
 		refreshes:  repositories.NewRefreshTokenRepository(db),
+		settings:   repositories.NewSettingsRepository(db),
 		panels:     repositories.NewPanelRepository(db),
 		inbounds:   repositories.NewInboundRepository(db),
 		metrics:    services.NewMetricsCollector(),

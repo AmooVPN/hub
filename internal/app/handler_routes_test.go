@@ -38,6 +38,34 @@ func TestAdminSettingsRouteWithAdminContext(t *testing.T) {
 	}
 }
 
+func TestAdminSettingsUpdatePersistsValues(t *testing.T) {
+	r, _ := newHandlerTestRunner(t)
+	app := newFiberTestApp()
+	app.Use(withAdminContext(security.RoleOwner))
+	app.Post("/admin/settings", r.postAdminSettings)
+
+	form := strings.NewReader("app_base_url=https%3A%2F%2Fhub.example.com%2Fapp&session_cookie_name=hub_session_new&session_ttl_hours=72&jwt_access_ttl_minutes=10&jwt_refresh_ttl_days=21&backup_dir=%2Ftmp%2Fhub-backups&automatic_backup_enabled=on&automatic_backup_schedule=weekly&backup_retention_count=12&backup_retention_days=14&metrics_enabled=on&trust_proxy=on&trusted_proxies=10.0.0.0%2F8%2C192.168.0.0%2F16&panel_url_strict_mode=on&max_upload_size_mb=55")
+	req := httptest.NewRequest(http.MethodPost, "/admin/settings", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("test request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected ok, got %d", resp.StatusCode)
+	}
+	if r.cfg.AppBaseURL != "https://hub.example.com/app" || r.cfg.SessionCookieName != "hub_session_new" || r.cfg.BackupRetentionCount != 12 || !r.cfg.AutomaticBackupEnabled {
+		t.Fatalf("expected config to update, got %+v", r.cfg)
+	}
+	settings, err := r.settings.LoadAll(context.Background())
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	if settings["APP_BASE_URL"] != "https://hub.example.com/app" || settings["SESSION_COOKIE_NAME"] != "hub_session_new" || settings["BACKUP_RETENTION_COUNT"] != "12" {
+		t.Fatalf("expected settings to persist, got %+v", settings)
+	}
+}
+
 func TestClientDashboardRouteWithClientContext(t *testing.T) {
 	r, _ := newHandlerTestRunner(t)
 	client := &models.Client{Username: "client-1", PasswordHash: mustHash(t, "client-password-123"), Status: "active", SubscriptionToken: "sub-token-1", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}

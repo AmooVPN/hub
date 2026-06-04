@@ -188,10 +188,11 @@ func (r *Runner) postAdminClientUpdate(c *fiber.Ctx) error {
 	if strings.TrimSpace(form.ExpiryText) == "" {
 		updated.ExpiryTime = nil
 	} else {
-		expiry, err := time.Parse(time.RFC3339, strings.TrimSpace(form.ExpiryText))
+		expiry, err := time.Parse("2006-01-02", strings.TrimSpace(form.ExpiryText))
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientEditPage(form, "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, []string{"expiry must be RFC3339"}))
+			return c.Status(fiber.StatusBadRequest).Type("html").SendString(renderAdminClientEditPage(form, "/admin/clients/"+c.Params("id"), r.cfg.AppName, admin.Role, []string{"expiry must be a valid date"}))
 		}
+		expiry = time.Date(expiry.Year(), expiry.Month(), expiry.Day(), 0, 0, 0, 0, time.UTC)
 		updated.ExpiryTime = &expiry
 	}
 	updated.UpdatedAt = time.Now().UTC()
@@ -251,10 +252,11 @@ func parseClientExpiry(raw string) (*time.Time, error) {
 	if raw == "" {
 		return nil, nil
 	}
-	expiry, err := time.Parse(time.RFC3339, raw)
+	expiry, err := time.Parse("2006-01-02", raw)
 	if err != nil {
-		return nil, errors.New("expiry must be RFC3339")
+		return nil, errors.New("expiry must be a valid date")
 	}
+	expiry = time.Date(expiry.Year(), expiry.Month(), expiry.Day(), 0, 0, 0, 0, time.UTC)
 	return &expiry, nil
 }
 
@@ -276,7 +278,7 @@ func clientEditFormFromClient(client *models.Client) clientEditForm {
 	form.Status = client.Status
 	form.TrafficLimitText = strconv.FormatInt(client.TrafficLimitBytes, 10)
 	if client.ExpiryTime != nil {
-		form.ExpiryText = client.ExpiryTime.UTC().Format(time.RFC3339)
+		form.ExpiryText = client.ExpiryTime.UTC().Format("2006-01-02")
 	}
 	return form
 }
@@ -295,7 +297,7 @@ func renderAdminClientCreatePage(form clientCreateForm, action, appName, adminRo
 		}
 		opts.WriteString(`<option value="` + status + `"` + selected + `>` + html.EscapeString(strings.Title(status)) + `</option>`)
 	}
-	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">Create client</h1><p class="text-body-secondary mb-0">Add a central client</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">Password</label><input class="form-control" id="password" name="password" type="password" required></div><div><label class="form-label" for="display_name">Display name</label><input class="form-control" id="display_name" name="display_name" value="` + html.EscapeString(form.DisplayName) + `"></div><div><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="` + html.EscapeString(form.Email) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div><label class="form-label" for="traffic_limit_bytes">Traffic limit bytes</label><input class="form-control" id="traffic_limit_bytes" name="traffic_limit_bytes" inputmode="numeric" value="` + html.EscapeString(form.TrafficLimitText) + `"></div><div><label class="form-label" for="expiry_time">Expiry time (RFC3339)</label><input class="form-control" id="expiry_time" name="expiry_time" value="` + html.EscapeString(form.ExpiryText) + `"><div class="form-text">Leave blank for no expiry.</div></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Create</button></div></form></div></div></div>`
+	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">Create client</h1><p class="text-body-secondary mb-0">Add a central client</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="password">Password</label><input class="form-control" id="password" name="password" type="password" required></div><div><label class="form-label" for="display_name">Display name</label><input class="form-control" id="display_name" name="display_name" value="` + html.EscapeString(form.DisplayName) + `"></div><div><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="` + html.EscapeString(form.Email) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div><label class="form-label" for="traffic_limit_bytes">Traffic limit bytes</label><input class="form-control" id="traffic_limit_bytes" name="traffic_limit_bytes" inputmode="numeric" value="` + html.EscapeString(form.TrafficLimitText) + `"></div><div><label class="form-label" for="expiry_time">Expiry date</label><input class="form-control" id="expiry_time" name="expiry_time" type="date" value="` + html.EscapeString(form.ExpiryText) + `"><div class="form-text">Leave blank for no expiry.</div></div><div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Create</button></div></form></div></div></div>`
 	return renderAdminShell(appName, adminRole, "clients", body)
 }
 
@@ -1046,7 +1048,7 @@ func renderAdminClientListPage(clients []adminClientListRow, filters clientListF
 	now := time.Now().UTC()
 	for _, client := range clients {
 		status := clientStatusLabel(&client.Client, client.TotalBytes, now)
-		rows.WriteString(`<tr><td>` + html.EscapeString(client.Username) + `</td><td>` + html.EscapeString(defaultString(client.DisplayName, "-")) + `</td><td>` + html.EscapeString(defaultString(client.Email, "-")) + `</td><td>` + clientStatusBadge(status) + `</td><td>` + html.EscapeString(strconv.FormatInt(int64(client.AttachmentCount), 10)) + `</td><td class="text-nowrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Attachments</a></td></tr>`)
+		rows.WriteString(`<tr><td><a href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">` + html.EscapeString(client.Username) + `</a></td><td>` + html.EscapeString(defaultString(client.DisplayName, "-")) + `</td><td>` + html.EscapeString(defaultString(client.Email, "-")) + `</td><td>` + clientStatusBadge(status) + `</td><td>` + html.EscapeString(strconv.FormatInt(int64(client.AttachmentCount), 10)) + `</td><td class="text-nowrap"><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments">Manage</a></td></tr>`)
 	}
 	if rows.Len() == 0 {
 		rows.WriteString(`<tr><td colspan="6" class="text-body-secondary">No clients yet.</td></tr>`)
@@ -1081,6 +1083,16 @@ func renderAdminClientAttachmentsPage(client *models.Client, attachments []model
 	var alert strings.Builder
 	inboundLabels := make(map[string]string)
 	var batchMessage strings.Builder
+	statusLabel := client.Status
+	if strings.TrimSpace(statusLabel) == "" {
+		statusLabel = "unknown"
+	}
+	expiryText := "No expiry"
+	if client.ExpiryTime != nil {
+		expiryText = client.ExpiryTime.UTC().Format(time.RFC3339)
+	}
+	trafficLimitText := formatBytes(client.TrafficLimitBytes)
+	attachmentCountText := strconv.Itoa(len(attachments))
 	for _, message := range messages {
 		alert.WriteString(`<div class="alert alert-info">` + html.EscapeString(message) + `</div>`)
 	}
@@ -1117,7 +1129,7 @@ func renderAdminClientAttachmentsPage(client *models.Client, attachments []model
 	if rows.Len() == 0 {
 		rows.WriteString(`<tr><td colspan="5" class="text-body-secondary">No attachments yet.</td></tr>`)
 	}
-	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(client.Username) + ` attachments</h1><p class="text-body-secondary mb-0">Attach this client to one or more inbounds</p></div><div class="d-flex gap-2"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div></div>` + alert.String() + batchMessage.String() + `<div class="card shadow-sm mb-3"><div class="card-body"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments" class="row g-2 align-items-end"><div class="col-12 col-md-9"><label class="form-label" for="inbound_ids">Inbounds</label><select class="form-select" id="inbound_ids" name="inbound_ids" multiple size="8" required>` + selectOpts.String() + `</select><div class="form-text">Use Ctrl/Cmd to select multiple inbounds.</div></div><div class="col-12 col-md-3"><button class="btn btn-primary w-100" type="submit">Attach selected</button></div></form></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Inbound</th><th>Remote ID</th><th>Remote Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
+	body := `<div class="container py-4 py-lg-5"><div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3"><div><h1 class="h3 mb-1">` + html.EscapeString(client.Username) + ` attachments</h1><p class="text-body-secondary mb-0">Manage client attachments</p></div><div class="d-flex gap-2"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/sync-traffic"><button class="btn btn-outline-info btn-sm" type="submit">Sync traffic</button></form><a class="btn btn-outline-secondary btn-sm" href="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `">Client detail</a><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div></div>` + alert.String() + batchMessage.String() + `<div class="row g-3 mb-3"><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Status</div><div class="fw-semibold">` + clientStatusBadge(statusLabel) + `</div><div class="text-body-secondary small mt-2">` + html.EscapeString(defaultString(client.DisplayName, "No display name")) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Expiry</div><div class="fw-semibold">` + html.EscapeString(expiryText) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Traffic limit</div><div class="fw-semibold">` + html.EscapeString(trafficLimitText) + `</div></div></div></div><div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-body-secondary small">Attachments</div><div class="fw-semibold">` + html.EscapeString(attachmentCountText) + `</div><div class="text-body-secondary small mt-2">` + html.EscapeString(defaultString(client.Email, "No email")) + `</div></div></div></div></div><div class="card shadow-sm mb-3"><div class="card-body"><form method="post" action="/admin/clients/` + strconv.FormatInt(client.ID, 10) + `/attachments" class="row g-2 align-items-end"><div class="col-12 col-md-9"><label class="form-label" for="inbound_ids">Inbounds</label><select class="form-select" id="inbound_ids" name="inbound_ids" multiple size="8" required>` + selectOpts.String() + `</select><div class="form-text">Use Ctrl/Cmd to select multiple inbounds.</div></div><div class="col-12 col-md-3"><button class="btn btn-primary w-100" type="submit">Attach selected</button></div></form></div></div><div class="card shadow-sm"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Inbound</th><th>Remote ID</th><th>Remote Email</th><th>Status</th><th>Actions</th></tr></thead><tbody>` + rows.String() + `</tbody></table></div></div></div>`
 	return renderAdminShell(appName, adminRole, "clients", body)
 }
 
@@ -1183,7 +1195,7 @@ func renderAdminClientEditPage(form clientEditForm, action, appName, adminRole s
 		}
 		opts.WriteString(`<option value="` + status + `"` + selected + `>` + html.EscapeString(strings.Title(status)) + `</option>`)
 	}
-	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">Edit client</h1><p class="text-body-secondary mb-0">Update identity and limits</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="display_name">Display name</label><input class="form-control" id="display_name" name="display_name" value="` + html.EscapeString(form.DisplayName) + `"></div><div><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="` + html.EscapeString(form.Email) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div><label class="form-label" for="traffic_limit_bytes">Traffic limit bytes</label><input class="form-control" id="traffic_limit_bytes" name="traffic_limit_bytes" inputmode="numeric" value="` + html.EscapeString(form.TrafficLimitText) + `"></div><div><label class="form-label" for="expiry_time">Expiry time (RFC3339)</label><input class="form-control" id="expiry_time" name="expiry_time" value="` + html.EscapeString(form.ExpiryText) + `"><div class="form-text">Leave blank to clear the expiry.</div></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
+	body := `<div class="container py-4 py-lg-5" style="max-width: 760px;"><div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3"><div><h1 class="h3 mb-1">Edit client</h1><p class="text-body-secondary mb-0">Update identity and limits</p></div><a class="btn btn-outline-secondary btn-sm" href="/admin/clients">Back</a></div>` + alert.String() + `<div class="card shadow-sm"><div class="card-body"><form method="post" action="` + html.EscapeString(action) + `" class="vstack gap-3"><div><label class="form-label" for="username">Username</label><input class="form-control" id="username" name="username" value="` + html.EscapeString(form.Username) + `" required></div><div><label class="form-label" for="display_name">Display name</label><input class="form-control" id="display_name" name="display_name" value="` + html.EscapeString(form.DisplayName) + `"></div><div><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="` + html.EscapeString(form.Email) + `"></div><div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">` + opts.String() + `</select></div><div><label class="form-label" for="traffic_limit_bytes">Traffic limit bytes</label><input class="form-control" id="traffic_limit_bytes" name="traffic_limit_bytes" inputmode="numeric" value="` + html.EscapeString(form.TrafficLimitText) + `"></div><div><label class="form-label" for="expiry_time">Expiry date</label><input class="form-control" id="expiry_time" name="expiry_time" type="date" value="` + html.EscapeString(form.ExpiryText) + `"><div class="form-text">Leave blank to clear the expiry.</div></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-primary" type="submit">Save</button></div></form></div></div></div>`
 	return renderAdminShell(appName, adminRole, "clients", body)
 }
 

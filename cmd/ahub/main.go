@@ -104,10 +104,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return runCompose("ps")
 	case "logs":
-		if len(rest) != 0 {
-			return fmt.Errorf("logs does not take arguments")
-		}
-		return runCompose("logs", "-f", "--tail", "100", serviceName)
+		return runLogs(rest)
 	case "backup":
 		if len(rest) != 0 {
 			return fmt.Errorf("backup does not take arguments")
@@ -139,29 +136,48 @@ func run(args []string, stdout, stderr io.Writer) error {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, "ahub - Hub server manager")
+	color := helpColorEnabled(w)
+	title := helpStyle(color, "bold", "ahub") + " - " + helpStyle(color, "cyan", "Hub server manager")
+	fmt.Fprintln(w, title)
+	fmt.Fprintln(w, helpStyle(color, "dim", "Docker-first operations for the installed hub stack."))
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Usage: ahub <command> [options]")
+	fmt.Fprintln(w, helpStyle(color, "bold", "Usage"))
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub")+" <command> [options]")
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Commands:")
-	fmt.Fprintln(w, "  ahub")
-	fmt.Fprintln(w, "    Show this help text")
-	fmt.Fprintln(w, "  ahub create env")
-	fmt.Fprintln(w, "    Generate a local .env file")
-	fmt.Fprintln(w, "  ahub create docker")
-	fmt.Fprintln(w, "    Generate Docker Compose and Dockerfile templates")
-	fmt.Fprintln(w, "  ahub setup --username admin --password '...' [--email ...] [--role owner]")
-	fmt.Fprintln(w, "    Bootstrap the initial admin account")
-	fmt.Fprintln(w, "  ahub start | stop | restart | rebuild | update | destroy")
-	fmt.Fprintln(w, "    Manage the Docker stack")
-	fmt.Fprintln(w, "  ahub status | logs | shell | backup | restore <file>")
-	fmt.Fprintln(w, "    Inspect or maintain the running installation")
-	fmt.Fprintln(w, "  ahub uninstall")
-	fmt.Fprintln(w, "    Remove containers, images, volumes, and local files")
-	fmt.Fprintln(w, "  ahub set port 8080")
-	fmt.Fprintln(w, "    Update the host port in .env")
+	fmt.Fprintln(w, helpStyle(color, "bold", "Quick Start"))
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub create env"))
+	fmt.Fprintln(w, "    Create `.env` with a generated secret key.")
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub create docker"))
+	fmt.Fprintln(w, "    Generate Docker Compose and Dockerfile templates.")
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub start"))
+	fmt.Fprintln(w, "    Start the stack in the install directory.")
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub logs"))
+	fmt.Fprintln(w, "    Live-follow container logs (tail 100 by default).")
+	fmt.Fprintln(w, "    Flags: --tail N, --since DURATION, --no-follow")
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Use 'ahub --help' or 'ahub help' to display this message.")
+	fmt.Fprintln(w, helpStyle(color, "bold", "Daily Ops"))
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "start")+"     Start containers")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "stop")+"      Stop containers")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "restart")+"   Restart containers")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "rebuild")+"   Rebuild and start")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "update")+"     Pull, migrate, and restart")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "status")+"     Show container status")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "logs")+"       Follow live logs")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "shell")+"      Open a shell in the app container")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "backup")+"     Export a backup archive")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "restore <file>")+"  Import a backup archive")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "destroy")+"    Stop and remove volumes")
+	fmt.Fprintln(w, "  "+helpStyle(color, "yellow", "uninstall")+"  Remove containers, image, volumes, and files")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, helpStyle(color, "bold", "Setup"))
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub setup --username admin --password '...' [--email ...] [--role owner]"))
+	fmt.Fprintln(w, "    Bootstrap the initial admin account.")
+	fmt.Fprintln(w, "  "+helpStyle(color, "green", "ahub set port 8080"))
+	fmt.Fprintln(w, "    Update `APP_PORT` and `APP_BASE_URL` in `.env`.")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, helpStyle(color, "bold", "Tips"))
+	fmt.Fprintln(w, "  "+helpStyle(color, "dim", "Run commands from the install directory, or set AHUB_DIR."))
+	fmt.Fprintln(w, "  "+helpStyle(color, "dim", "Use `ahub help` anytime to redisplay this guide."))
 }
 
 func isHelp(arg string) bool {
@@ -260,6 +276,38 @@ func runRestore(args []string) error {
 	return runCompose("run", "--rm", "--no-deps", "-v", filepath.Dir(abs)+":/restore", serviceName, "backup", "import", "--file", "/restore/"+filepath.Base(abs))
 }
 
+func runLogs(args []string) error {
+	composeArgs, err := buildLogsComposeArgs(args)
+	if err != nil {
+		return err
+	}
+	return runCompose(composeArgs...)
+}
+
+func buildLogsComposeArgs(args []string) ([]string, error) {
+	fs := flag.NewFlagSet("logs", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	tail := fs.Int("tail", 100, "number of lines to show")
+	since := fs.String("since", "", "show logs since time or duration")
+	follow := fs.Bool("follow", true, "follow output")
+	noFollow := fs.Bool("no-follow", false, "do not follow output")
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	if fs.NArg() != 0 {
+		return nil, fmt.Errorf("logs does not take arguments")
+	}
+	composeArgs := []string{"logs", "--tail", strconv.Itoa(*tail)}
+	if strings.TrimSpace(*since) != "" {
+		composeArgs = append(composeArgs, "--since", strings.TrimSpace(*since))
+	}
+	if *follow && !*noFollow {
+		composeArgs = append(composeArgs, "-f")
+	}
+	composeArgs = append(composeArgs, serviceName)
+	return composeArgs, nil
+}
+
 func runUninstall(stdout, stderr io.Writer) error {
 	if err := runCompose("down", "-v", "--remove-orphans"); err != nil {
 		return err
@@ -283,7 +331,7 @@ func runUninstall(stdout, stderr io.Writer) error {
 
 func composeImageIDs(service string) ([]string, error) {
 	cmd := exec.Command("docker", "compose", "images", "-q", service)
-	cmd.Dir = "."
+	cmd.Dir = composeWorkDir()
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -338,19 +386,29 @@ func runCompose(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-	cmd.Dir = "."
+	cmd.Dir = composeWorkDir()
 	return cmd.Run()
 }
 
 func tryGitPull() error {
-	if _, err := os.Stat(filepath.Join(".git")); err != nil {
+	dir := composeWorkDir()
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return nil
 	}
 	cmd := exec.Command("git", "pull", "--ff-only")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	cmd.Dir = dir
 	return cmd.Run()
+}
+
+func composeWorkDir() string {
+	dir := defaultInstallDir()
+	if _, err := os.Stat(filepath.Join(dir, "docker-compose.yml")); err == nil {
+		return dir
+	}
+	return "."
 }
 
 func writeFileIfNeeded(path, content string, force bool) error {
@@ -397,4 +455,39 @@ func randomSecret() string {
 		return "change-me"
 	}
 	return hex.EncodeToString(buf[:])
+}
+
+func helpColorEnabled(w io.Writer) bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	file, ok := w.(interface{ Fd() uintptr })
+	if !ok {
+		return false
+	}
+	info, err := os.NewFile(file.Fd(), "").Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func helpStyle(enabled bool, style, text string) string {
+	if !enabled {
+		return text
+	}
+	switch style {
+	case "bold":
+		return "\033[1m" + text + "\033[0m"
+	case "dim":
+		return "\033[2m" + text + "\033[0m"
+	case "green":
+		return "\033[32m" + text + "\033[0m"
+	case "yellow":
+		return "\033[33m" + text + "\033[0m"
+	case "cyan":
+		return "\033[36m" + text + "\033[0m"
+	default:
+		return text
+	}
 }

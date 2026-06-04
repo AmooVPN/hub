@@ -248,7 +248,7 @@ func (r *Runner) postAdminPanelHealth(c *fiber.Ctx) error {
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_health_check", "panel", &panel.ID, map[string]any{"status": panel.Status, "error": panel.LastError})
 	if err != nil {
-		return c.Status(fiber.StatusBadGateway).Type("html").SendString(renderAdminUsersPageMessage(err.Error(), r.cfg.AppName))
+		return c.Status(fiber.StatusBadGateway).Type("html").SendString(renderAdminPanelsPageMessage(err.Error(), r.cfg.AppName))
 	}
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
 }
@@ -268,7 +268,7 @@ func (r *Runner) postAdminPanelSync(c *fiber.Ctx) error {
 		return err
 	}
 	if err := r.syncPanelInbounds(c.UserContext(), panel); err != nil {
-		return err
+		return c.Status(fiber.StatusBadGateway).Type("html").SendString(renderAdminPanelsPageMessage(err.Error(), r.cfg.AppName))
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "panel_sync", "panel", &panel.ID, map[string]any{"status": panel.Status})
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
@@ -284,7 +284,7 @@ func (r *Runner) postAdminPanelSyncTraffic(c *fiber.Ctx) error {
 		return err
 	}
 	if err := r.syncPanelTraffic(c.UserContext(), panel); err != nil {
-		return err
+		return c.Status(fiber.StatusBadGateway).Type("html").SendString(renderAdminPanelsPageMessage(err.Error(), r.cfg.AppName))
 	}
 	_ = r.logAudit(c.UserContext(), "admin", adminActorID(admin), "traffic_sync", "panel", &panel.ID, map[string]any{"panel_id": panel.ID})
 	return c.Redirect(fmt.Sprintf("/admin/panels/%d", panel.ID), fiber.StatusFound)
@@ -316,6 +316,10 @@ func (r *Runner) loadPanel(ctx context.Context, idValue string) (*models.Panel, 
 		return nil, err
 	}
 	return panel, nil
+}
+
+func renderAdminPanelsPageMessage(message, appName string) string {
+	return renderPage("Panels", `<main class="container py-5"><div class="alert alert-danger">`+html.EscapeString(message)+`</div><a class="btn btn-outline-secondary" href="/admin/panels">Back to panels</a></main>`)
 }
 
 func (r *Runner) clearPanelSession(ctx context.Context, panelID int64) error {

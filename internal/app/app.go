@@ -33,6 +33,7 @@ type Runner struct {
 	clients        repositories.ClientRepository
 	clientsSvc     *services.ClientService
 	refreshes      repositories.RefreshTokenRepository
+	settings       repositories.SettingsRepository
 	panels         repositories.PanelRepository
 	inbounds       repositories.InboundRepository
 	jobs           *services.JobService
@@ -88,6 +89,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 	admins := repositories.NewAdminRepository(db)
 	clients := repositories.NewClientRepository(db)
 	refreshes := repositories.NewRefreshTokenRepository(db)
+	settings := repositories.NewSettingsRepository(db)
 	panels := repositories.NewPanelRepository(db)
 	inbounds := repositories.NewInboundRepository(db)
 	syncJobs := repositories.NewSyncJobRepository(db)
@@ -113,6 +115,7 @@ func New(logger *slog.Logger) (*Runner, error) {
 		clients:        clients,
 		clientsSvc:     services.NewClientService(clients),
 		refreshes:      refreshes,
+		settings:       settings,
 		panels:         panels,
 		inbounds:       inbounds,
 		jobs:           services.NewJobService(syncJobs),
@@ -129,6 +132,24 @@ func New(logger *slog.Logger) (*Runner, error) {
 		events:         services.NewEventBus(),
 		logger:         logger,
 		loginLocks:     newAttemptTracker(5, 15*time.Minute),
+	}
+	if settings != nil {
+		stored, err := settings.LoadAll(ctx)
+		if err != nil {
+			_ = db.Close()
+			_ = rdb.Close()
+			return nil, err
+		}
+		if err := cfg.ApplySettings(stored); err != nil {
+			_ = db.Close()
+			_ = rdb.Close()
+			return nil, err
+		}
+		if err := cfg.EnsurePaths(); err != nil {
+			_ = db.Close()
+			_ = rdb.Close()
+			return nil, err
+		}
 	}
 	runner.server = runner.buildServer()
 	runner.backgroundJobs.Start(context.Background())
@@ -185,6 +206,7 @@ func (r *Runner) buildServer() *fiber.App {
 	app.Post("/admin/sync-jobs/:id/retry", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobRetry)
 	app.Post("/admin/sync-jobs/:id/cancel", security.RequirePermission(security.PermissionManagePanels), r.postAdminSyncJobCancel)
 	app.Get("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.getAdminSettings)
+	app.Post("/admin/settings", security.RequirePermission(security.PermissionManageSettings), r.postAdminSettings)
 	app.Get("/admin/audit-logs", security.RequirePermission(security.PermissionViewAuditLogs), r.getAdminAuditLogs)
 	app.Get("/admin/audit-logs/:id", security.RequirePermission(security.PermissionViewAuditLogs), r.getAdminAuditLogDetail)
 	app.Get("/admin/backups", security.RequirePermission(security.PermissionViewDashboard), r.getAdminBackups)
