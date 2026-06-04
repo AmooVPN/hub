@@ -4060,12 +4060,12 @@ CMD ["/app/hub"]
 Tasks:
 
 * [x] Add Dockerfile.
-* [ ] Ensure templates are available inside container.
-* [ ] Ensure static files are available inside container.
-* [ ] Ensure app can write to `/app/data`.
-* [ ] Ensure app can write to `/app/backups`.
-* [ ] Run as non-root.
-* [ ] Add container healthcheck.
+* [x] Ensure templates are available inside container.
+* [x] Ensure static files are available inside container.
+* [x] Ensure app can write to `/app/data`.
+* [x] Ensure app can write to `/app/backups`.
+* [x] Run as non-root.
+* [x] Add container healthcheck.
 
 ---
 
@@ -4122,10 +4122,10 @@ volumes:
 
 Tasks:
 
-* [ ] Add Compose file.
-* [ ] Add persistent data volume.
-* [ ] Add persistent backups volume.
-* [ ] Add Redis volume.
+* [x] Add Compose file.
+* [x] Add persistent data volume.
+* [x] Add persistent backups volume.
+* [x] Add Redis volume.
 * [ ] Add production env example.
 * [ ] Document first-run admin setup.
 

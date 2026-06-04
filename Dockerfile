@@ -16,6 +16,7 @@ RUN apk add --no-cache ca-certificates tzdata wget && adduser -D -H hub
 WORKDIR /app
 
 COPY --from=builder /out/hub /app/hub
+COPY web /app/web
 
 RUN mkdir -p /app/data /app/backups && chown -R hub:hub /app
 
