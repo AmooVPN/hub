@@ -26,6 +26,24 @@ func TestTelegramNotifierSendTest(t *testing.T) {
 	}
 }
 
+func TestTelegramNotifierRetries(t *testing.T) {
+	var attempts int
+	notifier := NewTelegramNotifier("token", "chat")
+	notifier.Client = roundTripHTTPFunc(func(req *http.Request) (*http.Response, error) {
+		attempts++
+		if attempts < 3 {
+			return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader("boom")), Header: http.Header{}}, nil
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true}`)), Header: http.Header{}}, nil
+	})
+	if err := notifier.SendNotification(context.Background(), "warning", "title", "message"); err != nil {
+		t.Fatalf("send notification failed: %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("expected 3 attempts, got %d", attempts)
+	}
+}
+
 func TestEmailNotifierSendTest(t *testing.T) {
 	oldSendMail := sendMail
 	defer func() { sendMail = oldSendMail }()
@@ -49,6 +67,16 @@ func TestEmailNotifierSendTest(t *testing.T) {
 	}
 	if !bytes.Contains(gotMsg, []byte("subject")) || !bytes.Contains(gotMsg, []byte("body")) {
 		t.Fatalf("unexpected email body: %s", string(gotMsg))
+	}
+}
+
+func TestEmailNotifierTemplates(t *testing.T) {
+	if got := renderEmailSubject("warning", "Panel offline"); got != "[WARNING] Panel offline" {
+		t.Fatalf("unexpected subject %q", got)
+	}
+	body := renderEmailBody("danger", "Sync failed", "something went wrong")
+	if !strings.Contains(body, "Severity: DANGER") || !strings.Contains(body, "something went wrong") {
+		t.Fatalf("unexpected body %q", body)
 	}
 }
 

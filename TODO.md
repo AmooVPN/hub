@@ -3614,8 +3614,8 @@ Tasks:
 
 * [x] Add Telegram notifier.
 * [x] Add test message action.
-* [ ] Add event mapping.
-* [ ] Add retry on failure.
+* [x] Add event mapping.
+* [x] Add retry on failure.
 
 ---
 
@@ -3636,7 +3636,7 @@ SMTP_FROM=
 Tasks:
 
 * [x] Add SMTP notifier.
-* [ ] Add templates.
+* [x] Add templates.
 * [x] Add test email action.
 
 ---

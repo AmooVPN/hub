@@ -46,12 +46,42 @@ func (n *TelegramNotifier) Configured() bool {
 }
 
 func (n *TelegramNotifier) SendTest(ctx context.Context, message string) error {
+	return n.sendWithRetry(ctx, message)
+}
+
+func (n *TelegramNotifier) SendNotification(ctx context.Context, severity, title, message string) error {
+	if n == nil {
+		return errors.New("telegram notifier is not configured")
+	}
+	formatted := renderTelegramNotification(severity, title, message)
+	return n.sendWithRetry(ctx, formatted)
+}
+
+func (n *TelegramNotifier) sendWithRetry(ctx context.Context, message string) error {
 	if n == nil {
 		return errors.New("telegram notifier is not configured")
 	}
 	if !n.Configured() {
 		return errors.New("telegram notifier is not configured")
 	}
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := n.sendOnce(ctx, message); err != nil {
+			lastErr = err
+			if attempt < 3 {
+				time.Sleep(time.Duration(attempt) * 150 * time.Millisecond)
+			}
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+func (n *TelegramNotifier) sendOnce(ctx context.Context, message string) error {
 	payload := map[string]any{"chat_id": n.ChatID, "text": message, "disable_web_page_preview": true}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -82,6 +112,14 @@ func (n *EmailNotifier) Configured() bool {
 }
 
 func (n *EmailNotifier) SendTest(ctx context.Context, to, subject, body string) error {
+	return n.send(ctx, to, subject, body)
+}
+
+func (n *EmailNotifier) SendNotification(ctx context.Context, to, severity, title, message string) error {
+	return n.send(ctx, to, renderEmailSubject(severity, title), renderEmailBody(severity, title, message))
+}
+
+func (n *EmailNotifier) send(ctx context.Context, to, subject, body string) error {
 	if n == nil {
 		return errors.New("email notifier is not configured")
 	}
@@ -91,6 +129,7 @@ func (n *EmailNotifier) SendTest(ctx context.Context, to, subject, body string) 
 	if strings.TrimSpace(to) == "" {
 		return errors.New("recipient email is required")
 	}
+	_ = ctx
 	addr := n.Host + ":" + strconv.Itoa(n.Port)
 	msg := []byte("To: " + to + "\r\n" + "From: " + n.From + "\r\n" + "Subject: " + subject + "\r\n" + "Content-Type: text/plain; charset=UTF-8\r\n\r\n" + body + "\r\n")
 	var auth smtp.Auth
@@ -108,3 +147,32 @@ func (n *EmailNotifier) MaskedAddress() string {
 }
 
 func (n *EmailNotifier) Timeout() time.Duration { return 0 }
+
+func renderTelegramNotification(severity, title, message string) string {
+	parts := []string{strings.ToUpper(strings.TrimSpace(severity)) + ": " + strings.TrimSpace(title)}
+	if strings.TrimSpace(message) != "" {
+		parts = append(parts, strings.TrimSpace(message))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func renderEmailSubject(severity, title string) string {
+	severity = strings.ToUpper(strings.TrimSpace(severity))
+	if severity == "" {
+		return strings.TrimSpace(title)
+	}
+	return "[" + severity + "] " + strings.TrimSpace(title)
+}
+
+func renderEmailBody(severity, title, message string) string {
+	var b strings.Builder
+	b.WriteString("Severity: ")
+	b.WriteString(strings.ToUpper(strings.TrimSpace(severity)))
+	b.WriteString("\nTitle: ")
+	b.WriteString(strings.TrimSpace(title))
+	if strings.TrimSpace(message) != "" {
+		b.WriteString("\n\n")
+		b.WriteString(strings.TrimSpace(message))
+	}
+	return b.String()
+}

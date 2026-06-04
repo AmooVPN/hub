@@ -92,6 +92,8 @@ func New(logger *slog.Logger) (*Runner, error) {
 	webhookDefs := repositories.NewWebhookRepository(db)
 	webhookDeliveries := repositories.NewWebhookDeliveryRepository(db)
 	notifications := repositories.NewNotificationRepository(db)
+	telegram := services.NewTelegramNotifier(cfg.TelegramBotToken, cfg.TelegramChatID)
+	email := services.NewEmailNotifier(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -117,9 +119,9 @@ func New(logger *slog.Logger) (*Runner, error) {
 		backups:        services.NewBackupService(),
 		audit:          audit,
 		webhooks:       services.NewWebhookService(webhookDefs, webhookDeliveries),
-		notifications:  services.NewNotificationService(notifications),
-		telegram:       services.NewTelegramNotifier(cfg.TelegramBotToken, cfg.TelegramChatID),
-		email:          services.NewEmailNotifier(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom),
+		notifications:  services.NewNotificationService(notifications, telegram, email),
+		telegram:       telegram,
+		email:          email,
 		logger:         logger,
 		loginLocks:     newAttemptTracker(5, 15*time.Minute),
 	}
