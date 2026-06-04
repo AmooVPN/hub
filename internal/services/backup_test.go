@@ -46,6 +46,13 @@ func TestBackupServiceCreateListDelete(t *testing.T) {
 	if len(r.File) != 2 {
 		t.Fatalf("expected 2 zip entries, got %d", len(r.File))
 	}
+	seen := map[string]bool{}
+	for _, f := range r.File {
+		seen[f.Name] = true
+	}
+	if !seen["metadata.json"] || !seen["hub.db"] {
+		t.Fatalf("unexpected zip entries: %+v", seen)
+	}
 	if err := service.Delete(backupDir, rec.Name); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -66,9 +73,33 @@ func TestBackupServiceValidateImportArchive(t *testing.T) {
 	}
 }
 
+func TestBackupServiceValidateImportArchiveRejectsMissingMetadata(t *testing.T) {
+	service := NewBackupService()
+	data := buildBackupArchiveWithoutMetadata(t, []byte("SQLite format 3\x00rest-of-db"))
+	if _, err := service.ValidateImportArchive(data); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestBackupServiceValidateImportArchiveRejectsInvalidApp(t *testing.T) {
 	service := NewBackupService()
 	data := buildBackupArchive(t, BackupMetadata{App: "other", Version: backupFormatVersion, Database: "sqlite", SchemaVersion: backupSchemaVersion, CreatedAt: time.Now().UTC()}, []byte("SQLite format 3\x00rest-of-db"))
+	if _, err := service.ValidateImportArchive(data); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestBackupServiceValidateImportArchiveRejectsPathTraversal(t *testing.T) {
+	service := NewBackupService()
+	data := buildBackupArchiveWithPathTraversal(t, BackupMetadata{App: "hub", Version: backupFormatVersion, Database: "sqlite", SchemaVersion: backupSchemaVersion, CreatedAt: time.Now().UTC()}, []byte("SQLite format 3\x00rest-of-db"))
+	if _, err := service.ValidateImportArchive(data); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestBackupServiceValidateImportArchiveRejectsInvalidSQLite(t *testing.T) {
+	service := NewBackupService()
+	data := buildBackupArchive(t, BackupMetadata{App: "hub", Version: backupFormatVersion, Database: "sqlite", SchemaVersion: backupSchemaVersion, CreatedAt: time.Now().UTC()}, []byte("not-a-sqlite-db"))
 	if _, err := service.ValidateImportArchive(data); err == nil {
 		t.Fatal("expected validation error")
 	}
@@ -112,6 +143,13 @@ func TestBackupServicePrepareImportRollsBackSafetyBackupOnStageFailure(t *testin
 	t.Cleanup(func() { writeStagedImportFile = originalWrite })
 	if _, err := service.PrepareImport(context.Background(), data, dbPath, backupDir, "hub"); err == nil {
 		t.Fatal("expected stage failure")
+	}
+	content, err := os.ReadFile(dbPath)
+	if err != nil {
+		t.Fatalf("read db: %v", err)
+	}
+	if string(content) != "sqlite-bytes" {
+		t.Fatalf("expected db contents to remain unchanged, got %q", string(content))
 	}
 	backs, err := service.List(backupDir)
 	if err != nil {
@@ -190,17 +228,45 @@ func TestBackupServiceCleanupOldBackupsKeepsProtectedNames(t *testing.T) {
 
 func buildBackupArchive(t *testing.T, meta BackupMetadata, db []byte) []byte {
 	t.Helper()
+	return buildArchive(t, func(zw *zip.Writer) error {
+		metaBytes, err := json.Marshal(meta)
+		if err != nil {
+			return err
+		}
+		if err := writeZipFile(zw, "metadata.json", metaBytes); err != nil {
+			return err
+		}
+		return writeZipFile(zw, "hub.db", db)
+	})
+}
+
+func buildBackupArchiveWithoutMetadata(t *testing.T, db []byte) []byte {
+	t.Helper()
+	return buildArchive(t, func(zw *zip.Writer) error {
+		return writeZipFile(zw, "hub.db", db)
+	})
+}
+
+func buildBackupArchiveWithPathTraversal(t *testing.T, meta BackupMetadata, db []byte) []byte {
+	t.Helper()
+	return buildArchive(t, func(zw *zip.Writer) error {
+		metaBytes, err := json.Marshal(meta)
+		if err != nil {
+			return err
+		}
+		if err := writeZipFile(zw, "../metadata.json", metaBytes); err != nil {
+			return err
+		}
+		return writeZipFile(zw, "hub.db", db)
+	})
+}
+
+func buildArchive(t *testing.T, fn func(*zip.Writer) error) []byte {
+	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	metaBytes, err := json.Marshal(meta)
-	if err != nil {
-		t.Fatalf("marshal metadata: %v", err)
-	}
-	if err := writeZipFile(zw, "metadata.json", metaBytes); err != nil {
-		t.Fatalf("write metadata: %v", err)
-	}
-	if err := writeZipFile(zw, "hub.db", db); err != nil {
-		t.Fatalf("write db: %v", err)
+	if err := fn(zw); err != nil {
+		t.Fatalf("write archive: %v", err)
 	}
 	if err := zw.Close(); err != nil {
 		t.Fatalf("close archive: %v", err)

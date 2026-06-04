@@ -3906,11 +3906,11 @@ POST /admin/maintenance/vacuum-db
 
 Tasks:
 
-* [ ] Add DB integrity check.
-* [ ] Add SQLite VACUUM action.
-* [ ] Add cleanup action.
-* [ ] Add permission checks.
-* [ ] Add warnings.
+* [x] Add DB integrity check.
+* [x] Add SQLite VACUUM action.
+* [x] Add cleanup action.
+* [x] Add permission checks.
+* [x] Add warnings.
 
 SQLite check:
 

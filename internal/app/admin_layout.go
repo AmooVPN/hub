@@ -25,6 +25,7 @@ func renderAdminShell(appName string, adminRole string, activePage string, conte
 		{Label: "Backups", Href: "/admin/backups", Active: activePage == "backups", Allowed: security.HasRole(adminRole, security.RoleOwner, security.RoleAdmin)},
 		{Label: "Notifications", Href: "/admin/notifications", Active: activePage == "notifications", Allowed: true},
 		{Label: "Webhooks", Href: "/admin/webhooks", Active: activePage == "webhooks", Allowed: security.HasPermission(adminRole, security.PermissionManageSettings)},
+		{Label: "Maintenance", Href: "/admin/maintenance", Active: activePage == "maintenance", Allowed: security.HasRole(adminRole, security.RoleOwner)},
 		{Label: "Audit Logs", Href: "/admin/audit-logs", Active: activePage == "audit-logs", Allowed: security.HasPermission(adminRole, security.PermissionViewAuditLogs)},
 		{Label: "Settings", Href: "/admin/settings", Active: activePage == "settings", Allowed: security.HasPermission(adminRole, security.PermissionManageSettings)},
 		{Label: "Admin Users", Href: "/admin/users", Active: activePage == "admin-users", Allowed: security.HasPermission(adminRole, security.PermissionManageAdmins)},
