@@ -294,7 +294,7 @@ export const sections: readonly Section[] = [
       {
         method: 'GET',
         path: '/panel/api/server/getPanelUpdateInfo',
-        summary: 'Check whether a newer 3x-ui release is available on GitHub.',
+        summary: 'Check whether a newer l-ui release is available on GitHub.',
       },
       {
         method: 'GET',
@@ -731,7 +731,7 @@ export const sections: readonly Section[] = [
     id: 'nodes',
     title: 'Nodes',
     description:
-      'Manage remote 3x-ui panels acting as nodes for a central panel. All endpoints under /panel/api/nodes.',
+      'Manage remote l-ui panels acting as nodes for a central panel. All endpoints under /panel/api/nodes.',
     endpoints: [
       {
         method: 'GET',
@@ -762,6 +762,15 @@ export const sections: readonly Section[] = [
         summary: 'Register a new remote node. Provide its URL, apiToken, and optional remark / allowPrivateAddress flag.',
         body:
           '{\n  "name": "de-fra-1",\n  "remark": "",\n  "scheme": "https",\n  "address": "node1.example.com",\n  "port": 2053,\n  "basePath": "/",\n  "apiToken": "abcdef...",\n  "enable": true,\n  "allowPrivateAddress": false\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/nodes/bootstrap',
+        summary: 'SSH into a new host, install the l-ui agent, start the service, and register the node in one step. The panel generates the API token and returns the executed bootstrap steps for display in the UI.',
+        body:
+          '{\n  "name": "de-fra-1",\n  "remark": "",\n  "address": "203.0.113.10",\n  "sshUser": "root",\n  "sshPassword": "secret",\n  "sshPort": 22,\n  "agentPort": 2053\n}',
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "node": {\n      "id": 1,\n      "name": "de-fra-1",\n      "address": "203.0.113.10",\n      "port": 2053,\n      "basePath": "/",\n      "enable": true\n    },\n    "steps": [\n      { "name": "detect-arch", "ok": true, "output": "x86_64" },\n      { "name": "verify-agent", "ok": true, "output": "{...}" }\n    ]\n  }\n}',
       },
       {
         method: 'POST',
@@ -937,7 +946,7 @@ export const sections: readonly Section[] = [
       {
         method: 'POST',
         path: '/panel/setting/restartPanel',
-        summary: 'Restart the entire 3x-ui process after a 3-second grace period. The connection drops immediately; the panel comes back online ~5-10 seconds later.',
+        summary: 'Restart the entire l-ui process after a 3-second grace period. The connection drops immediately; the panel comes back online ~5-10 seconds later.',
       },
       {
         method: 'GET',

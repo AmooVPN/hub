@@ -37,6 +37,17 @@ export const ProbeResultSchema = z.object({
   error: z.string().optional(),
 }).loose();
 
+export const NodeBootstrapStepSchema = z.object({
+  name: z.string(),
+  ok: z.boolean(),
+  output: z.string().optional(),
+}).loose();
+
+export const NodeBootstrapResultSchema = z.object({
+  node: NodeRecordSchema,
+  steps: z.array(NodeBootstrapStepSchema),
+}).loose();
+
 export const NodeFormSchema = z.object({
   id: z.number().optional(),
   name: z.string().trim().min(1, 'pages.nodes.toasts.fillRequired'),
@@ -52,6 +63,20 @@ export const NodeFormSchema = z.object({
   pinnedCertSha256: z.string().optional().default(''),
 });
 
+export const NodeBootstrapFormSchema = z.object({
+  name: z.string().trim().min(1, 'pages.nodes.toasts.fillRequired'),
+  remark: z.string().optional(),
+  address: z.string().trim().min(1, 'pages.nodes.toasts.fillRequired'),
+  sshUser: z.string().trim().min(1, 'pages.nodes.toasts.fillRequired'),
+  sshPassword: z.string().min(1, 'pages.nodes.toasts.fillRequired'),
+  sshPort: z.number().int().min(1).max(65535).default(22),
+  agentPort: z.number().int().min(1).max(65535).default(2053),
+  bootstrapBase: z.string().optional().default('/'),
+});
+
 export type NodeRecord = z.infer<typeof NodeRecordSchema>;
 export type ProbeResult = z.infer<typeof ProbeResultSchema>;
 export type NodeFormValues = z.infer<typeof NodeFormSchema>;
+export type NodeBootstrapStep = z.infer<typeof NodeBootstrapStepSchema>;
+export type NodeBootstrapResult = z.infer<typeof NodeBootstrapResultSchema>;
+export type NodeBootstrapFormValues = z.infer<typeof NodeBootstrapFormSchema>;

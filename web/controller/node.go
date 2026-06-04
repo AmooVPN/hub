@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/database/model"
-	"github.com/mhsanaei/3x-ui/v3/web/middleware"
-	"github.com/mhsanaei/3x-ui/v3/web/service"
+	"github.com/drunkleen/l-ui/v3/database/model"
+	"github.com/drunkleen/l-ui/v3/web/middleware"
+	"github.com/drunkleen/l-ui/v3/web/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,6 +36,7 @@ func (a *NodeController) initRouter(g *gin.RouterGroup) {
 	g.POST("/setEnable/:id", a.setEnable)
 
 	g.POST("/test", a.test)
+	g.POST("/bootstrap", a.bootstrap)
 	g.POST("/certFingerprint", a.certFingerprint)
 	g.POST("/probe/:id", a.probe)
 	g.POST("/updatePanel", a.updatePanel)
@@ -177,6 +178,16 @@ func (a *NodeController) test(c *gin.Context) {
 	defer cancel()
 	patch, err := a.nodeService.Probe(ctx, n)
 	jsonObj(c, patch.ToUI(err == nil), nil)
+}
+
+func (a *NodeController) bootstrap(c *gin.Context) {
+	req, ok := middleware.BindAndValidate[service.NodeBootstrapRequest](c)
+	if !ok {
+		return
+	}
+	ctx := c.Request.Context()
+	result, err := a.nodeService.Bootstrap(ctx, *req)
+	jsonMsgObj(c, I18nWeb(c, "pages.nodes.toasts.add"), result, err)
 }
 
 func (a *NodeController) certFingerprint(c *gin.Context) {

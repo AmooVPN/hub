@@ -21,7 +21,7 @@
       "cookieAuth": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "3x-ui",
+        "name": "l-ui",
         "description": "Session cookie set by POST /login. Browser-only."
       }
     }
@@ -53,7 +53,7 @@
     },
     {
       "name": "Nodes",
-      "description": "Manage remote 3x-ui panels acting as nodes for a central panel. All endpoints under /panel/api/nodes."
+      "description": "Manage remote l-ui panels acting as nodes for a central panel. All endpoints under /panel/api/nodes."
     },
     {
       "name": "Custom Geo",
@@ -1410,7 +1410,7 @@
         "tags": [
           "Server"
         ],
-        "summary": "Check whether a newer 3x-ui release is available on GitHub.",
+        "summary": "Check whether a newer l-ui release is available on GitHub.",
         "operationId": "get_panel_api_server_getPanelUpdateInfo",
         "responses": {
           "200": {
@@ -4152,6 +4152,80 @@
         }
       }
     },
+    "/panel/api/nodes/bootstrap": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "SSH into a new host, install the l-ui agent, start the service, and register the node in one step. The panel generates the API token and returns the executed bootstrap steps for display in the UI.",
+        "operationId": "post_panel_api_nodes_bootstrap",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "name": "de-fra-1",
+                "remark": "",
+                "address": "203.0.113.10",
+                "sshUser": "root",
+                "sshPassword": "secret",
+                "sshPort": 22,
+                "agentPort": 2053
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "node": {
+                      "id": 1,
+                      "name": "de-fra-1",
+                      "address": "203.0.113.10",
+                      "port": 2053,
+                      "basePath": "/",
+                      "enable": true
+                    },
+                    "steps": [
+                      {
+                        "name": "detect-arch",
+                        "ok": true,
+                        "output": "x86_64"
+                      },
+                      {
+                        "name": "verify-agent",
+                        "ok": true,
+                        "output": "{...}"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/panel/api/nodes/update/{id}": {
       "post": {
         "tags": [
@@ -5045,7 +5119,7 @@
         "tags": [
           "Settings"
         ],
-        "summary": "Restart the entire 3x-ui process after a 3-second grace period. The connection drops immediately; the panel comes back online ~5-10 seconds later.",
+        "summary": "Restart the entire l-ui process after a 3-second grace period. The connection drops immediately; the panel comes back online ~5-10 seconds later.",
         "operationId": "post_panel_setting_restartPanel",
         "responses": {
           "200": {

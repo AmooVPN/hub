@@ -4,7 +4,13 @@ import { HttpUtil, Msg } from '@/utils';
 import { parseMsg } from '@/utils/zodValidate';
 import { keys } from '@/api/queryKeys';
 import type { NodeRecord } from '@/api/queries/useNodesQuery';
-import { ProbeResultSchema, type ProbeResult } from '@/schemas/node';
+import {
+  NodeBootstrapResultSchema,
+  ProbeResultSchema,
+  type NodeBootstrapFormValues,
+  type NodeBootstrapResult,
+  type ProbeResult,
+} from '@/schemas/node';
 
 export type { ProbeResult };
 
@@ -51,6 +57,14 @@ export function useNodeMutations() {
     onSuccess: (msg) => { if (msg?.success) invalidate(); },
   });
 
+  const bootstrapMut = useMutation({
+    mutationFn: async (payload: NodeBootstrapFormValues): Promise<Msg<NodeBootstrapResult>> => {
+      const raw = await HttpUtil.post('/panel/api/nodes/bootstrap', payload);
+      return parseMsg(raw, NodeBootstrapResultSchema, 'nodes/bootstrap');
+    },
+    onSuccess: (msg) => { if (msg?.success) invalidate(); },
+  });
+
   const updatePanelsMut = useMutation({
     mutationFn: (ids: number[]) =>
       HttpUtil.post<NodeUpdateResult[]>('/panel/api/nodes/updatePanel', { ids }, {
@@ -65,6 +79,7 @@ export function useNodeMutations() {
     remove: (id: number) => removeMut.mutateAsync(id),
     setEnable: (id: number, enable: boolean) => setEnableMut.mutateAsync({ id, enable }),
     probe: (id: number) => probeMut.mutateAsync(id),
+    bootstrap: (payload: NodeBootstrapFormValues) => bootstrapMut.mutateAsync(payload),
     updatePanels: (ids: number[]): Promise<Msg<NodeUpdateResult[]>> => updatePanelsMut.mutateAsync(ids),
     testConnection: async (payload: Partial<NodeRecord>): Promise<Msg<ProbeResult>> => {
       const raw = await HttpUtil.post('/panel/api/nodes/test', payload);
